@@ -211,10 +211,11 @@ private struct TimelineToolbar: View {
             }
             .font(.system(size: 11, weight: .semibold, design: .monospaced))
 
+            splitButton
             addZoomButton
 
             if project.isTrimmed {
-                trimBadge
+                clipsBadge
             }
 
             Spacer()
@@ -223,6 +224,7 @@ private struct TimelineToolbar: View {
                 shortcutHint("I", description: "Mark in")
                 shortcutHint("O", description: "Mark out")
                 shortcutHint("⌫", description: "Reset trim")
+                shortcutHint("S", description: "Split")
             }
             .help("Keyboard shortcuts")
 
@@ -242,6 +244,41 @@ private struct TimelineToolbar: View {
     private var displayedDuration: Double {
         project.timelineDuration
     }
+
+    // MARK: - Split button
+
+    private var splitButton: some View {
+        Button(action: {
+            project.splitAtPlayhead()
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: "scissors")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Split")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(red: 1.0, green: 0.82, blue: 0.10))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(project.videoURL == nil || !canSplit)
+        .opacity(project.videoURL == nil || !canSplit ? 0.4 : 1.0)
+        .help("Split clip at playhead (S)")
+    }
+
+    /// The playhead must be inside a clip (not at its very edges) to allow splitting.
+    private var canSplit: Bool {
+        guard let clip = project.activeClip else { return false }
+        return project.currentSeconds > clip.timelineStart + 0.05
+            && project.currentSeconds < clip.timelineEnd - 0.05
+    }
+
+    // MARK: - Add zoom button
 
     /// Adds a zoom segment at the current playhead. If the playhead is already inside an
     /// existing segment, selects it instead of stacking a new one on top.
@@ -277,20 +314,41 @@ private struct TimelineToolbar: View {
         _ = project.addZoomSegment(at: t)
     }
 
-    private var trimBadge: some View {
+    // MARK: - Clips badge
+
+    private var clipsBadge: some View {
         HStack(spacing: 4) {
-            Image(systemName: "scissors")
-            Text(String(format: "%.2fs trimmed", max(0, project.durationSeconds - project.clipDuration)))
-            Button {
-                project.trimStartTime = 0
-                project.trimEndTime = project.durationSeconds
-                project.clipTimelineStart = 0
-            } label: {
-                Image(systemName: "xmark.circle.fill")
+            Image(systemName: "film")
+            if project.clips.count > 1 {
+                Text("\(project.clips.count) clips")
+            } else {
+                let trimmed = max(0, project.durationSeconds - project.clipDuration)
+                if trimmed > 0.01 {
+                    Text(String(format: "%.2fs trimmed", trimmed))
+                } else {
+                    Text("1 clip")
+                }
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white.opacity(0.7))
-            .help("Reset trim")
+            if project.clips.count > 1 {
+                Button {
+                    // Reset all clips back to one
+                    guard let firstClip = project.clips.first else { return }
+                    project.pushUndo()
+                    let dur = project.durationSeconds
+                    project.clips = [VideoClip(
+                        id: UUID(),
+                        trimStartTime: 0,
+                        trimEndTime: dur,
+                        timelineStart: 0
+                    )]
+                    project.activeClipID = project.clips.first?.id
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.7))
+                .help("Reset to single clip")
+            }
         }
         .font(.system(size: 10, weight: .semibold, design: .rounded))
         .foregroundStyle(.black.opacity(0.85))

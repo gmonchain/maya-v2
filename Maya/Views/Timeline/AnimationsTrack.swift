@@ -17,8 +17,6 @@ struct AnimationsTrack: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let duration = project.timelineDuration
-            // Offset converting a segment's source-time startTime into a timeline-time x.
-            let clipDisplayOffset = project.clipTimelineStart - project.trimStartTime
 
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 6)
@@ -28,30 +26,35 @@ struct AnimationsTrack: View {
                             .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     )
 
-                // Existing segments. Segments live in source coords; we shift them by
-                // `clipDisplayOffset` so they appear under the clip's current timeline window.
+                // Existing segments. Each segment lives in source coords; we find the
+                // clip it belongs to and shift by that clip's display offset so it
+                // appears under the correct timeline window.
                 ForEach(project.animations) { segment in
-                    let isLive = segment.endTime > project.trimStartTime && segment.startTime < project.trimEndTime
+                    let clipOffset = Self.displayOffset(for: segment, clips: project.clips)
+                    let isLive = clipOffset != nil
                     SegmentBlock(
                         segment: segment,
                         isSelected: project.selectedAnimationID == segment.id,
                         isLive: isLive,
                         trackWidth: width,
                         totalDuration: duration,
-                        clipDisplayOffset: clipDisplayOffset,
+                        clipDisplayOffset: clipOffset ?? 0,
                         playheadTime: project.currentSeconds,
                         height: height - 12,
                         onTap: {
                             project.selectedAnimationID = segment.id
                             onSelectSegment(segment)
                         },
+                        onDragStart: {
+                            project.pushUndo()
+                        },
                         onChange: { updated in
                             project.updateZoomSegment(updated)
                         },
                         onDelete: { project.removeZoomSegment(id: segment.id) },
                         onSnap: { snappedTime in
-                            if let t = snappedTime, duration > 0 {
-                                snapGuideX = CGFloat((t + clipDisplayOffset) / duration) * width
+                            if let t = snappedTime, let offset = clipOffset, duration > 0 {
+                                snapGuideX = CGFloat((t + offset) / duration) * width
                             } else {
                                 snapGuideX = nil
                             }
@@ -93,6 +96,15 @@ struct AnimationsTrack: View {
             }
         }
         .frame(height: height)
+    }
+
+    /// Finds the clip that contains the segment's source time range and returns
+    /// the offset needed to convert source coords → timeline display coords.
+    static func displayOffset(for segment: ZoomSegment, clips: [VideoClip]) -> Double? {
+        guard let clip = clips.first(where: {
+            segment.startTime >= $0.trimStartTime && segment.startTime < $0.trimEndTime
+        }) else { return nil }
+        return clip.timelineStart - clip.trimStartTime
     }
 
     static func snap(_ t: Double, toPlayhead playheadTime: Double? = nil) -> Double {
@@ -153,6 +165,7 @@ private struct SegmentBlock: View {
     let playheadTime: Double
     let height: CGFloat
     let onTap: () -> Void
+    let onDragStart: () -> Void
     let onChange: (ZoomSegment) -> Void
     let onDelete: () -> Void
     /// Snap callback receives the *timeline* time it snapped to (or nil).
@@ -250,7 +263,10 @@ private struct SegmentBlock: View {
         .gesture(
             DragGesture(minimumDistance: 3)
                 .onChanged { v in
-                    if dragSnapshot == nil { dragSnapshot = (segment.startTime, segment.duration) }
+                    if dragSnapshot == nil {
+                        onDragStart()
+                        dragSnapshot = (segment.startTime, segment.duration)
+                    }
                     let dt = (Double(v.translation.width) / Double(trackWidth)) * totalDuration
                     let raw = (dragSnapshot?.start ?? 0) + dt
                     // Snap compares times in the SAME coordinate system. Convert the playhead
@@ -289,7 +305,10 @@ private struct SegmentBlock: View {
             .gesture(
                 DragGesture(minimumDistance: 2)
                     .onChanged { v in
-                        if dragSnapshot == nil { dragSnapshot = (segment.startTime, segment.duration) }
+                        if dragSnapshot == nil {
+                            onDragStart()
+                            dragSnapshot = (segment.startTime, segment.duration)
+                        }
                         onDrag(v.translation.width)
                     }
                     .onEnded { _ in

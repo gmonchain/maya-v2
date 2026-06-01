@@ -19,7 +19,7 @@ actor ExportService {
         /// nil when `deviceFrame.kind == .none` — the compositor skips the overlay step.
         let frameOverlayCG: CGImage?
         /// Animations in absolute source-video coordinates. Each export path shifts/filters
-        /// them as appropriate for its time base (see `animationsShiftedToTrim`).
+        /// them as appropriate for its time base.
         let animations: [ZoomSegment]
         let renderSize: CGSize
         let bareCornerRadius: CGFloat
@@ -27,8 +27,8 @@ actor ExportService {
         let bareBezelColor: CIColor
         let shadow: PhoneShadow
         let shadowColor: CIColor
-        /// Source range to export. When the user hasn't trimmed, this is the full clip.
-        let trimRange: CMTimeRange
+        /// All clips on the timeline, ordered by their position.
+        let clips: [VideoClip]
     }
 
     func exportWithBackground(
@@ -52,17 +52,12 @@ actor ExportService {
     // MARK: - With background pipeline
 
     private func runWithBackground(snapshot: Snapshot, outputURL: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
-        // Source lives inside our sandbox already — no scope needed there. The save-panel
-        // URL still requires scope for the writer to create the destination file.
         let outputAccess = outputURL.startAccessingSecurityScopedResource()
         defer { if outputAccess { outputURL.stopAccessingSecurityScopedResource() } }
 
         let asset = AVURLAsset(url: snapshot.sourceVideoURL)
         let videoTracks = try await asset.loadTracks(withMediaType: .video)
         guard let sourceVideoTrack = videoTracks.first else { throw ExportError.noVideoTrack }
-        let trimRange = snapshot.trimRange
-        let duration = trimRange.duration
-        let trimStartSeconds = trimRange.start.seconds
 
         let composition = AVMutableComposition()
         guard let compositionVideoTrack = composition.addMutableTrack(
@@ -70,26 +65,36 @@ actor ExportService {
             preferredTrackID: kCMPersistentTrackID_Invalid
         ) else { throw ExportError.cannotBuildComposition }
 
-        try compositionVideoTrack.insertTimeRange(
-            trimRange,
-            of: sourceVideoTrack,
-            at: .zero
-        )
+        // Insert each clip's trimmed range into the composition sequentially.
+        var insertTime: CMTime = .zero
+        for clip in snapshot.clips {
+            let range = CMTimeRange(
+                start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+            )
+            try compositionVideoTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertTime)
+            insertTime = CMTimeAdd(insertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+        }
 
-        // Audio passthrough
+        // Audio passthrough — same pattern.
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         if let sourceAudio = audioTracks.first,
            let compositionAudio = composition.addMutableTrack(
             withMediaType: .audio,
             preferredTrackID: kCMPersistentTrackID_Invalid
            ) {
-            try? compositionAudio.insertTimeRange(
-                trimRange,
-                of: sourceAudio,
-                at: .zero
-            )
+            var audioInsertTime: CMTime = .zero
+            for clip in snapshot.clips {
+                let range = CMTimeRange(
+                    start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                    duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                )
+                try? compositionAudio.insertTimeRange(range, of: sourceAudio, at: audioInsertTime)
+                audioInsertTime = CMTimeAdd(audioInsertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+            }
         }
 
+        let totalDuration = insertTime
         let renderSize = snapshot.renderSize
         let frameDuration = try await sourceVideoTrack.load(.minFrameDuration)
         let fps = frameDuration == .invalid || frameDuration.seconds <= 0 ? CMTime(value: 1, timescale: 60) : frameDuration
@@ -98,7 +103,7 @@ actor ExportService {
         let frameOverlay = snapshot.frameOverlayCG.map { CIImage(cgImage: $0) }
 
         let instruction = DeviceFrameCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+        instruction.timeRange = CMTimeRange(start: .zero, duration: totalDuration)
         instruction.deviceFrame = snapshot.deviceFrame
         instruction.scale = snapshot.scale
         instruction.offsetFraction = snapshot.offsetFraction
@@ -106,9 +111,8 @@ actor ExportService {
         instruction.backgroundImage = backgroundImage
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = false
-        // Composition starts at zero in this path; shift animations so they fire at the
-        // right moments in the trimmed timeline.
-        instruction.animations = Self.animationsShiftedToTrim(snapshot.animations, trimStart: trimStartSeconds, trimDuration: duration.seconds)
+        // Shift animations from source coords to composition time coords.
+        instruction.animations = Self.animationsForComposition(snapshot.animations, clips: snapshot.clips)
         instruction.bareCornerRadius = snapshot.bareCornerRadius
         instruction.bareBezelWidth = snapshot.bareBezelWidth
         instruction.bareBezelColor = snapshot.bareBezelColor
@@ -155,9 +159,7 @@ actor ExportService {
         let asset = AVURLAsset(url: snapshot.sourceVideoURL)
         let videoTracks = try await asset.loadTracks(withMediaType: .video)
         guard let sourceVideoTrack = videoTracks.first else { throw ExportError.noVideoTrack }
-        let trimRange = snapshot.trimRange
-        let duration = trimRange.duration
-        let trimStartTime = trimRange.start
+
         let rawFrameDuration = try await sourceVideoTrack.load(.minFrameDuration)
         let frameDuration: CMTime = (rawFrameDuration == .invalid || rawFrameDuration.seconds <= 0)
             ? CMTime(value: 1, timescale: 60)
@@ -166,21 +168,54 @@ actor ExportService {
         let renderSize = snapshot.renderSize
         let frameOverlay = snapshot.frameOverlayCG.map { CIImage(cgImage: $0) }
 
+        // Build a composition from all clips so the reader produces the right sequence.
+        let composition = AVMutableComposition()
+        guard let compVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else { throw ExportError.cannotBuildComposition }
+
+        var insertTime: CMTime = .zero
+        for clip in snapshot.clips {
+            let range = CMTimeRange(
+                start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+            )
+            try compVideoTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertTime)
+            insertTime = CMTimeAdd(insertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+        }
+
+        // Audio
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        if let sourceAudio = audioTracks.first,
+           let compAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            var audioInsertTime: CMTime = .zero
+            for clip in snapshot.clips {
+                let range = CMTimeRange(
+                    start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                    duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                )
+                try? compAudioTrack.insertTimeRange(range, of: sourceAudio, at: audioInsertTime)
+                audioInsertTime = CMTimeAdd(audioInsertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+            }
+        }
+
+        let totalDuration = insertTime
+
         let instruction = DeviceFrameCompositionInstruction()
-        // The reader produces samples with source-time PTS; the video composition sees them
-        // as composition time. Cover the trim window in source coords so the instruction
-        // matches every sample we'll read.
-        instruction.timeRange = trimRange
+        instruction.timeRange = CMTimeRange(start: .zero, duration: totalDuration)
         instruction.deviceFrame = snapshot.deviceFrame
         instruction.scale = snapshot.scale
         instruction.offsetFraction = snapshot.offsetFraction
-        instruction.sourceTrackID = sourceVideoTrack.trackID
+        instruction.sourceTrackID = compVideoTrack.trackID
         instruction.backgroundImage = nil
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = true
-        // Animations stay in absolute source coords here — the compositor will see
-        // composition time = source PTS.
-        instruction.animations = snapshot.animations
+        // Shift animations to composition time.
+        instruction.animations = Self.animationsForComposition(snapshot.animations, clips: snapshot.clips)
         instruction.bareCornerRadius = snapshot.bareCornerRadius
         instruction.bareBezelWidth = snapshot.bareBezelWidth
         instruction.bareBezelColor = snapshot.bareBezelColor
@@ -197,19 +232,18 @@ actor ExportService {
             try FileManager.default.removeItem(at: outputURL)
         }
 
-        let reader = try AVAssetReader(asset: asset)
-        // Honor the trim window: the reader only emits samples whose PTS falls inside trimRange.
-        reader.timeRange = trimRange
+        let reader = try AVAssetReader(asset: composition)
+        let compVideoTracks = try await composition.loadTracks(withMediaType: .video)
         let videoOutput = AVAssetReaderVideoCompositionOutput(
-            videoTracks: videoTracks,
+            videoTracks: compVideoTracks,
             videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         )
         videoOutput.videoComposition = videoComposition
         if reader.canAdd(videoOutput) { reader.add(videoOutput) }
 
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let compAudioTracks = try await composition.loadTracks(withMediaType: .audio)
         var audioOutput: AVAssetReaderTrackOutput?
-        if let audioTrack = audioTracks.first {
+        if let audioTrack = compAudioTracks.first {
             let o = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: [
                 AVFormatIDKey: kAudioFormatLinearPCM,
                 AVLinearPCMBitDepthKey: 16,
@@ -269,7 +303,7 @@ actor ExportService {
         guard writer.startWriting() else { throw ExportError.writerStartFailed(writer.error) }
         writer.startSession(atSourceTime: .zero)
 
-        let totalSeconds = duration.seconds
+        let totalSeconds = totalDuration.seconds
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { [self] in
@@ -278,13 +312,12 @@ actor ExportService {
                     input: videoInput,
                     adaptor: pixelAdaptor,
                     totalSeconds: totalSeconds,
-                    timeOffset: trimStartTime,
                     progress: progress
                 )
             }
             if let ao = audioOutput, let ai = audioInput {
                 group.addTask { [self] in
-                    try await self.pumpAudio(output: ao, input: ai, timeOffset: trimStartTime)
+                    try await self.pumpAudio(output: ao, input: ai)
                 }
             }
             try await group.waitForAll()
@@ -302,7 +335,6 @@ actor ExportService {
         input: AVAssetWriterInput,
         adaptor: AVAssetWriterInputPixelBufferAdaptor,
         totalSeconds: Double,
-        timeOffset: CMTime,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
         let queue = DispatchQueue(label: "maya.export.video", qos: .userInitiated)
@@ -316,17 +348,15 @@ actor ExportService {
                         state.finish(.success(()))
                         return
                     }
-                    let srcPTS = CMSampleBufferGetPresentationTimeStamp(sample)
-                    // Output file timeline starts at 0; subtract the trim-in offset.
-                    let outPTS = CMTimeSubtract(srcPTS, timeOffset)
+                    let pts = CMSampleBufferGetPresentationTimeStamp(sample)
                     guard let buffer = CMSampleBufferGetImageBuffer(sample) else { continue }
-                    if !adaptor.append(buffer, withPresentationTime: outPTS) {
+                    if !adaptor.append(buffer, withPresentationTime: pts) {
                         input.markAsFinished()
                         state.finish(.failure(ExportError.appendFailed))
                         return
                     }
                     if totalSeconds > 0 {
-                        let p = outPTS.seconds / totalSeconds
+                        let p = pts.seconds / totalSeconds
                         progress(min(max(p, 0), 0.99))
                     }
                 }
@@ -336,8 +366,7 @@ actor ExportService {
 
     private nonisolated func pumpAudio(
         output: AVAssetReaderTrackOutput,
-        input: AVAssetWriterInput,
-        timeOffset: CMTime
+        input: AVAssetWriterInput
     ) async throws {
         let queue = DispatchQueue(label: "maya.export.audio", qos: .userInitiated)
         let state = ContinuationGuard<Void>()
@@ -350,14 +379,7 @@ actor ExportService {
                         state.finish(.success(()))
                         return
                     }
-                    // Shift the audio sample PTS to align with the output's zero baseline.
-                    if let shifted = Self.shiftSamplePTS(sample, by: timeOffset) {
-                        if !input.append(shifted) {
-                            input.markAsFinished()
-                            state.finish(.failure(ExportError.appendFailed))
-                            return
-                        }
-                    } else if !input.append(sample) {
+                    if !input.append(sample) {
                         input.markAsFinished()
                         state.finish(.failure(ExportError.appendFailed))
                         return
@@ -367,50 +389,40 @@ actor ExportService {
         }
     }
 
-    /// Returns a sample buffer whose presentation timestamp is shifted by `-offset`.
-    /// Falls back to nil if rewriting fails; the caller should append the original sample.
-    private nonisolated static func shiftSamplePTS(_ sample: CMSampleBuffer, by offset: CMTime) -> CMSampleBuffer? {
-        guard offset != .zero else { return sample }
-        var count = CMItemCount(0)
-        CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
-        guard count > 0 else { return nil }
-        var infos = [CMSampleTimingInfo](repeating: .init(), count: count)
-        let status = CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &infos, entriesNeededOut: nil)
-        guard status == noErr else { return nil }
-        for i in 0..<infos.count {
-            if infos[i].presentationTimeStamp.isNumeric {
-                infos[i].presentationTimeStamp = CMTimeSubtract(infos[i].presentationTimeStamp, offset)
-            }
-            if infos[i].decodeTimeStamp.isNumeric {
-                infos[i].decodeTimeStamp = CMTimeSubtract(infos[i].decodeTimeStamp, offset)
-            }
-        }
-        var out: CMSampleBuffer?
-        let s = CMSampleBufferCreateCopyWithNewTiming(
-            allocator: kCFAllocatorDefault,
-            sampleBuffer: sample,
-            sampleTimingEntryCount: count,
-            sampleTimingArray: infos,
-            sampleBufferOut: &out
-        )
-        guard s == noErr else { return nil }
-        return out
-    }
+    // MARK: - Animation shifting
 
-    /// Shifts every segment by `-trimStart`, drops segments entirely outside `[0, trimDuration]`,
-    /// and clamps segments that straddle the boundary so they stay inside the trimmed window.
-    /// Re-clamps `transitionIn`/`transitionOut` to the new duration since duration may shrink.
-    private nonisolated static func animationsShiftedToTrim(_ segments: [ZoomSegment], trimStart: Double, trimDuration: Double) -> [ZoomSegment] {
-        guard trimDuration > 0 else { return [] }
+    /// Maps source-time animations into composition-time coordinates for multi-clip export.
+    /// For each animation, finds the clip whose source range contains it, then calculates
+    /// its composition position as: (sum of preceding clip durations) + (animation start - clip trim start).
+    nonisolated static func animationsForComposition(_ segments: [ZoomSegment], clips: [VideoClip]) -> [ZoomSegment] {
+        guard !clips.isEmpty else { return [] }
         let minDuration = 0.4
+
+        // Build cumulative offsets: clipOffsets[i] = sum of durations of clips 0..<i
+        var clipOffsets: [Double] = []
+        var cumulative: Double = 0
+        for clip in clips {
+            clipOffsets.append(cumulative)
+            cumulative += clip.clipDuration
+        }
+        let totalCompositionDuration = cumulative
+
         return segments.compactMap { seg in
-            let newStart = seg.startTime - trimStart
-            let newEnd = newStart + seg.duration
-            if newEnd <= 0 || newStart >= trimDuration { return nil }
+            // Find which clip this animation's start falls in.
+            guard let (clipIndex, clip) = clips.enumerated().first(where: { _, clip in
+                seg.startTime >= clip.trimStartTime && seg.startTime < clip.trimEndTime
+            }) else { return nil }
+
+            let compositionOffset = clipOffsets[clipIndex]
+            let localStart = seg.startTime - clip.trimStartTime
+            let clipDuration = clip.clipDuration
+
             var s = seg
-            s.startTime = max(0, newStart)
-            let effectiveEnd = min(newEnd, trimDuration)
+            s.startTime = compositionOffset + localStart
+            let effectiveEnd = min(compositionOffset + clipDuration, s.startTime + s.duration)
             s.duration = max(minDuration, effectiveEnd - s.startTime)
+            // Clamp total composition
+            if s.startTime >= totalCompositionDuration { return nil }
             let half = max(0.05, s.duration / 2)
             s.transitionIn = min(s.transitionIn, half)
             s.transitionOut = min(s.transitionOut, half)
@@ -465,7 +477,6 @@ actor ExportService {
             }
             return CIImage(color: .black).cropped(to: rect)
         case .none:
-            // Should never reach here — transparent path uses renderTransparent flag instead.
             return CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: rect)
         }
     }
@@ -497,15 +508,6 @@ actor ExportService {
         if case .videoBlur = project.background {
             blurPosterCG = BlurPosterCache.shared.cachedCGImage(for: url)
         }
-        // Build the export trim range. If the user hasn't touched the trim, this is the
-        // full asset duration.
-        let trimStart = max(0, project.trimStartTime)
-        let trimEnd = project.trimEndTime > 0 ? project.trimEndTime : project.durationSeconds
-        let trimDuration = max(0.001, trimEnd - trimStart)
-        let trimRange = CMTimeRange(
-            start: CMTime(seconds: trimStart, preferredTimescale: 600),
-            duration: CMTime(seconds: trimDuration, preferredTimescale: 600)
-        )
 
         return Snapshot(
             sourceVideoURL: url,
@@ -523,7 +525,7 @@ actor ExportService {
             bareBezelColor: (Color(hex: project.bareBezelHex) ?? .black).ciColor,
             shadow: project.shadow,
             shadowColor: (Color(hex: project.shadow.colorHex) ?? .black).ciColor,
-            trimRange: trimRange
+            clips: project.clips
         )
     }
 }

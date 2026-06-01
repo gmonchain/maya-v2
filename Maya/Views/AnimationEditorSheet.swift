@@ -6,6 +6,8 @@ struct AnimationEditorPanel: View {
     let onDismiss: () -> Void
 
     @State private var isCustomizing = false
+    /// Tracks whether we've pushed an undo snapshot for the current editing session.
+    @State private var hasPushedUndoForSegment: ZoomSegment.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -309,6 +311,11 @@ struct AnimationEditorPanel: View {
                     ?? ZoomSegment(startTime: 0, duration: 1, scale: 1, focus: .center)
             },
             set: { newValue in
+                // Push undo once per segment editing session (first slider drag, preset apply, etc.)
+                if hasPushedUndoForSegment != segmentID {
+                    project.pushUndo()
+                    hasPushedUndoForSegment = segmentID
+                }
                 project.updateZoomSegment(newValue)
             }
         )

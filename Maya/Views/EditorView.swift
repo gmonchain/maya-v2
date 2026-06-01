@@ -79,6 +79,16 @@ struct EditorView: View {
                 .keyboardShortcut("o", modifiers: [])
             Button("") { resetTrim() }
                 .keyboardShortcut(.delete, modifiers: .option)
+
+            // Split shortcut
+            Button("") { project.splitAtPlayhead() }
+                .keyboardShortcut("s", modifiers: [])
+
+            // Undo / Redo
+            Button("") { project.undo() }
+                .keyboardShortcut("z", modifiers: .command)
+            Button("") { project.redo() }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
         }
         .opacity(0)
         .allowsHitTesting(false)
@@ -87,8 +97,7 @@ struct EditorView: View {
 
     private func markTrimIn() {
         guard project.videoURL != nil else { return }
-        // currentSeconds is in timeline coords; convert to source for the trim handle, and
-        // anchor the clip's right edge so the trim doesn't push the rest of the clip around.
+        project.pushUndo()
         let newSource = project.timelineToSource(project.currentSeconds)
         let delta = newSource - project.trimStartTime
         project.setTrimStart(newSource)
@@ -97,20 +106,27 @@ struct EditorView: View {
 
     private func markTrimOut() {
         guard project.videoURL != nil else { return }
+        project.pushUndo()
         let newSource = project.timelineToSource(project.currentSeconds)
         project.setTrimEnd(newSource)
     }
 
     private func resetTrim() {
         guard project.videoURL != nil else { return }
+        project.pushUndo()
         project.trimStartTime = 0
         project.trimEndTime = project.durationSeconds
         project.clipTimelineStart = 0
     }
 
     private func deleteSelectedSegment() {
-        guard let id = project.selectedAnimationID else { return }
-        project.removeZoomSegment(id: id)
+        // Priority: if a zoom animation is selected, delete it.
+        if let id = project.selectedAnimationID {
+            project.removeZoomSegment(id: id)
+            return
+        }
+        // Otherwise delete the active clip (ripple: remaining clips close the gap).
+        project.deleteActiveClip()
     }
 
     private func duplicateSelectedSegment() {
