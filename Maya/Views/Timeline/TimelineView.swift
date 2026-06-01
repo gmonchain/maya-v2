@@ -228,6 +228,8 @@ private struct TimelineToolbar: View {
             }
             .help("Keyboard shortcuts")
 
+            overlapToggleButton
+
             Button(action: { project.toggleMute() }) {
                 Image(systemName: project.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 12, weight: .semibold))
@@ -375,6 +377,32 @@ private struct TimelineToolbar: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.6))
         }
+    }
+
+    // MARK: - Overlap toggle
+
+    private var overlapToggleButton: some View {
+        Button(action: {
+            project.allowClipOverlap.toggle()
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: project.allowClipOverlap ? "rectangle.stack" : "rectangle.dashed")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(project.allowClipOverlap ? "Overlap" : "Snap")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(project.allowClipOverlap
+                        ? (Color(hex: "#6466FA") ?? .accentColor)
+                        : Color.white.opacity(0.12))
+            )
+        }
+        .buttonStyle(.plain)
+        .help(project.allowClipOverlap ? "Overlap mode: clips can overlap (click to snap)" : "Snap mode: clips snap to edges (click to overlap)")
     }
 }
 

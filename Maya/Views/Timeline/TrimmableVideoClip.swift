@@ -37,7 +37,7 @@ struct TrimmableVideoClip: View {
     private let handleHitWidth: CGFloat = 22
     private let trimColor = Color(red: 1.0, green: 0.82, blue: 0.10)
     private let activeClipTint = Color(red: 1.0, green: 0.82, blue: 0.10)
-    private let inactiveClipTint = Color(red: 0.7, green: 0.65, blue: 0.30)
+    private let inactiveClipTint = Color(red: 0.5, green: 0.47, blue: 0.20)
     private let cornerRadius: CGFloat = 8
 
     var body: some View {
@@ -133,17 +133,35 @@ struct TrimmableVideoClip: View {
                 .clipped()
             }
 
+            // Active clip background tint for extra visibility
+            if isActive {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(activeClipTint.opacity(0.08))
+                    .frame(width: clipWidth, height: height)
+            }
+
+            // Main border — thicker and brighter for active clip
             RoundedRectangle(cornerRadius: cornerRadius)
                 .stroke(
                     (activeHandle != nil && isDragged) || (isDraggingBody && isDragged)
                         ? (isActive ? activeClipTint : inactiveClipTint)
-                        : (isActive ? activeClipTint.opacity(isHovering ? 0.9 : 0.55) : inactiveClipTint.opacity(0.35)),
-                    lineWidth: (activeHandle != nil && isDragged) || (isDraggingBody && isDragged) ? 3 : 2
+                        : (isActive ? activeClipTint : inactiveClipTint.opacity(0.4)),
+                    lineWidth: (activeHandle != nil && isDragged) || (isDraggingBody && isDragged) ? 3 : (isActive ? 3 : 1)
                 )
                 .frame(width: clipWidth, height: height)
                 .animation(.easeOut(duration: 0.15), value: activeHandle)
                 .animation(.easeOut(duration: 0.15), value: isHovering)
                 .animation(.easeOut(duration: 0.15), value: isDraggingBody)
+
+            // Glow effect on active clip
+            if isActive {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(activeClipTint, lineWidth: 2)
+                    .blur(radius: 4)
+                    .opacity(0.6)
+                    .frame(width: clipWidth, height: height)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: clipWidth, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -162,7 +180,10 @@ struct TrimmableVideoClip: View {
                           timelineWidth > 0,
                           timelineDuration > 0 else { return }
                     let dt = (Double(v.translation.width) / Double(timelineWidth)) * timelineDuration
-                    let proposed = max(0, snapStart + dt)
+                    var proposed = max(0, snapStart + dt)
+                    // Snap to other clip edges when overlap is disabled.
+                    let clipDur = project.clips[clipIndex].clipDuration
+                    proposed = project.snapClipPosition(proposed, duration: clipDur, excludingClipAt: clipIndex)
                     project.clips[clipIndex].timelineStart = proposed
                     // Keep playhead inside the dragged clip
                     if project.currentSeconds < project.clips[clipIndex].timelineStart {
