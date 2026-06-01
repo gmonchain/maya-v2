@@ -279,6 +279,26 @@ struct SettingsSidebar: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            sliderRow(
+                title: "Offset X",
+                value: Binding(
+                    get: { project.offset.width },
+                    set: { project.offset.width = $0 }
+                ),
+                range: -0.5...0.5,
+                display: String(format: "%.3f", project.offset.width)
+            )
+
+            sliderRow(
+                title: "Offset Y",
+                value: Binding(
+                    get: { project.offset.height },
+                    set: { project.offset.height = $0 }
+                ),
+                range: -0.5...0.5,
+                display: String(format: "%.3f", project.offset.height)
+            )
+
             Button("Reset position") {
                 project.offset = .zero
                 project.scale = 0.85

@@ -1,0 +1,83 @@
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/MayaApp.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/ContentView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iPhone 15 Pro.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AccentColor.colorset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/MacBook Pro 14.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - White Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Black Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Cosmic Orange.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Natural Titanium .imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Gold Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Natural Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Silver.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Deep Blue.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - White Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Black Titanium.imageset/Contents.json
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/ZoomKeyframe.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/CanvasAspectRatio.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/BackgroundOption.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/Project.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/DeviceFrame.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/PhoneShadow.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/CanvasView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/SettingsSidebar.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/LoopingVideoView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/BackgroundPicker.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/BackgroundView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/EditorView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/VideoPlayerNSView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/AnimationEditorSheet.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/FramedDeviceView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/VideoThumbnailStrip.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/TimelineView.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/AnimationsTrack.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/TrimmableVideoClip.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/ExportService.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/DeviceFrameCompositor.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/VideoThumbnailGenerator.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/BlurPosterCache.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/AnimationSampler.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/build-release.sh
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/make-background.swift
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/RELEASING.md
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/README.md
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/CLAUDE.md
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/index.html
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/.github/workflows/release.yml
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iPhone 15 Pro.imageset/iPhone 15 Pro.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_256.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_32.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_128.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_512.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_16.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_1024.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_64.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/MacBook Pro 14.imageset/MacBook Pro 14.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - White Titanium.imageset/iPhone 16 Pro - White Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Black Titanium.imageset/iPhone 15 Pro - Black Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Cosmic Orange.imageset/iPhone 17 Pro - Cosmic Orange.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Natural Titanium .imageset/iPhone 16 Pro - Natural Titanium .png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Gold Titanium.imageset/iPhone 16 Pro - Gold Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Natural Titanium.imageset/iPhone 15 Pro - Natural Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Silver.imageset/iPhone 17 Pro - Silver.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Deep Blue.imageset/iPhone 17 Pro - Deep Blue.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - White Titanium.imageset/iPhone 15 Pro - White Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Black Titanium.imageset/iPhone 16 Pro - Black Titanium.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/icon.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/screenshot.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/background.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/background@2x.png
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/soft-reveal.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/quick-punch.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/bottom-focus.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/top-focus.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/dramatic.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/soft-reveal.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/quick-punch.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/bottom-focus.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/top-focus.mp4
+/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/dramatic.mp4

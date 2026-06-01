@@ -9,9 +9,43 @@ animations, and exports ready-to-share videos. Built with SwiftUI + AppKit + AVF
 
 ## Build & run
 
+### Từ Xcode
+
 ```bash
 open Maya.xcodeproj   # then ⌘R in Xcode
 ```
+
+### From terminal (no Xcode GUI needed)
+
+```bash
+# Build + run in one command
+xcodebuild -project Maya.xcodeproj \
+  -scheme Maya -configuration Debug \
+  -derivedDataPath .build \
+  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+  MACOSX_DEPLOYMENT_TARGET=26.2 \
+  build && open .build/Build/Products/Debug/Maya.app
+```
+
+The `CODE_SIGN_*` flags skip code signing (needed if you don't have a Developer certificate).
+`MACOSX_DEPLOYMENT_TARGET=26.2` works around the project targeting 26.3 while the SDK caps at 26.2.
+
+### Auto build + run on file save (terminal-style hot reload)
+
+Install `watchexec`:
+
+```bash
+brew install watchexec
+```
+
+Then run from the project root:
+
+```bash
+watchexec -w Maya/ -e swift -- \
+  'pkill -f Maya 2>/dev/null; xcodebuild -project Maya.xcodeproj -scheme Maya -configuration Debug -derivedDataPath .build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO MACOSX_DEPLOYMENT_TARGET=26.2 build 2>&1 | grep -E "error:|warning:|BUILD|Build succeeded" && open .build/Build/Products/Debug/Maya.app'
+```
+
+Save any `.swift` file and the app rebuilds + relaunches automatically — see UI changes without touching Xcode.
 
 Requires **macOS 26.3 (Tahoe)** or later and **Xcode 26.5** or later.
 

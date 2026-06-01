@@ -1,0 +1,417 @@
+{
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/MayaApp.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "4a695ffbf6eab44d0bee456d47db8056",
+    "semantic_hash": "4a695ffbf6eab44d0bee456d47db8056"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/ContentView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "7551822f2555e6e8892dc5bd4b459e0b",
+    "semantic_hash": "7551822f2555e6e8892dc5bd4b459e0b"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iPhone 15 Pro.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "df8f46b1af115df5f85eea67244231b4",
+    "semantic_hash": "df8f46b1af115df5f85eea67244231b4"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "451db6d21febf03d36902171e1fe32a7",
+    "semantic_hash": "451db6d21febf03d36902171e1fe32a7"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AccentColor.colorset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "55019f7265dde0a78318b0807f98e847",
+    "semantic_hash": "55019f7265dde0a78318b0807f98e847"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/MacBook Pro 14.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "f5b9512671b50dbd766f66d2d1c382ee",
+    "semantic_hash": "f5b9512671b50dbd766f66d2d1c382ee"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - White Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "f707e0f7593009588b69ecc7a116eb42",
+    "semantic_hash": "f707e0f7593009588b69ecc7a116eb42"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Black Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "9c1867503bc4acc3fe3f9638100d7550",
+    "semantic_hash": "9c1867503bc4acc3fe3f9638100d7550"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Cosmic Orange.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "d19f0caf1d4f09a8f57da77219702ab1",
+    "semantic_hash": "d19f0caf1d4f09a8f57da77219702ab1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Natural Titanium .imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "3fcad2d629b6ee0d4f25bb4d650e2e01",
+    "semantic_hash": "3fcad2d629b6ee0d4f25bb4d650e2e01"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Gold Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "0e62b30b7bfba7002d07327498468858",
+    "semantic_hash": "0e62b30b7bfba7002d07327498468858"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Natural Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "34dec1865578f5cd7977a8d97d0ee491",
+    "semantic_hash": "34dec1865578f5cd7977a8d97d0ee491"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Silver.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "c4f8d2cee8e36abc5a9869712cc336d3",
+    "semantic_hash": "c4f8d2cee8e36abc5a9869712cc336d3"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Deep Blue.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "bd18ec4b561d35e8e9bab3893ce3b032",
+    "semantic_hash": "bd18ec4b561d35e8e9bab3893ce3b032"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - White Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "78761771ad53f51eafb0f351c8a92894",
+    "semantic_hash": "78761771ad53f51eafb0f351c8a92894"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Black Titanium.imageset/Contents.json": {
+    "mtime": 1779479530.0,
+    "ast_hash": "7d26d4388e2faa3a9b11f2c17d44fbb1",
+    "semantic_hash": "7d26d4388e2faa3a9b11f2c17d44fbb1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/ZoomKeyframe.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "649d631ece511873cd6b889d9f1ead1a",
+    "semantic_hash": "649d631ece511873cd6b889d9f1ead1a"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/CanvasAspectRatio.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "74092e683a0b07f443a1fdae80c36f74",
+    "semantic_hash": "74092e683a0b07f443a1fdae80c36f74"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/BackgroundOption.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "de64e09a91f7d84bf6bdbd58a69c40a0",
+    "semantic_hash": "de64e09a91f7d84bf6bdbd58a69c40a0"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/Project.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "80c9c87688c9e2a4bf440fe5995a70d0",
+    "semantic_hash": "80c9c87688c9e2a4bf440fe5995a70d0"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/DeviceFrame.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "138623ca53190b3fb8ae4a154196f32b",
+    "semantic_hash": "138623ca53190b3fb8ae4a154196f32b"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Models/PhoneShadow.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "bbee07a31cdebf47258d4a0c30e954ab",
+    "semantic_hash": "bbee07a31cdebf47258d4a0c30e954ab"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/CanvasView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "8bdf547c82b6ab50d8076bf4520e9625",
+    "semantic_hash": "8bdf547c82b6ab50d8076bf4520e9625"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/SettingsSidebar.swift": {
+    "mtime": 1780319568.9229493,
+    "ast_hash": "395dcfa31f29b09f97f258b642edd7a2",
+    "semantic_hash": "395dcfa31f29b09f97f258b642edd7a2"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/LoopingVideoView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "4a70d200251ddad4dcbb25c6c9126c8a",
+    "semantic_hash": "4a70d200251ddad4dcbb25c6c9126c8a"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/BackgroundPicker.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "c36720a9d6bb667d4f0389fedd3940b9",
+    "semantic_hash": "c36720a9d6bb667d4f0389fedd3940b9"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/BackgroundView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "377024e29d184734499c019ebb411440",
+    "semantic_hash": "377024e29d184734499c019ebb411440"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/EditorView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "4f283365c99832e18db2b32d1e311d74",
+    "semantic_hash": "4f283365c99832e18db2b32d1e311d74"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/VideoPlayerNSView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ab1724f49978607bc8d5328432351326",
+    "semantic_hash": "ab1724f49978607bc8d5328432351326"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/AnimationEditorSheet.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "7dbe6115f63a93ecaea028344dab10bd",
+    "semantic_hash": "7dbe6115f63a93ecaea028344dab10bd"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/FramedDeviceView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "981d1113487f259847f63d3815a5a2ee",
+    "semantic_hash": "981d1113487f259847f63d3815a5a2ee"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/VideoThumbnailStrip.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "1b4b112f8cc4042d48fe3b9d70f07d4f",
+    "semantic_hash": "1b4b112f8cc4042d48fe3b9d70f07d4f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/TimelineView.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "c02df5a476f4ed3362e6e1dfaec29790",
+    "semantic_hash": "c02df5a476f4ed3362e6e1dfaec29790"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/AnimationsTrack.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "f6d13cc6223d533cb0f5da4fa72d69d1",
+    "semantic_hash": "f6d13cc6223d533cb0f5da4fa72d69d1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Views/Timeline/TrimmableVideoClip.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "55d9bc6ce8984d55655be208cce6a78b",
+    "semantic_hash": "55d9bc6ce8984d55655be208cce6a78b"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/ExportService.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "4d99d5a8bef5b2def10e547f68d35091",
+    "semantic_hash": "4d99d5a8bef5b2def10e547f68d35091"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/DeviceFrameCompositor.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "951bcc5c3055db8050722d1e6e131c68",
+    "semantic_hash": "951bcc5c3055db8050722d1e6e131c68"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/VideoThumbnailGenerator.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ded4480f8419c0002a385334187679d8",
+    "semantic_hash": "ded4480f8419c0002a385334187679d8"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/BlurPosterCache.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "1aa5465aa78fbc74f434e9adb684e5fd",
+    "semantic_hash": "1aa5465aa78fbc74f434e9adb684e5fd"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Services/AnimationSampler.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "af25e679356d39be23fd1306d2ebf553",
+    "semantic_hash": "af25e679356d39be23fd1306d2ebf553"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/build-release.sh": {
+    "mtime": 1779479530.0,
+    "ast_hash": "b8270dd8ae42865d01d7371805e51303",
+    "semantic_hash": "b8270dd8ae42865d01d7371805e51303"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/make-background.swift": {
+    "mtime": 1779479530.0,
+    "ast_hash": "31429eee24f82b7327c2047c0b0b4217",
+    "semantic_hash": "31429eee24f82b7327c2047c0b0b4217"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/RELEASING.md": {
+    "mtime": 1779479530.0,
+    "ast_hash": "fe1d4be1c7036cd9fc5baca56ddf1e4e",
+    "semantic_hash": "fe1d4be1c7036cd9fc5baca56ddf1e4e"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/README.md": {
+    "mtime": 1780319224.9950795,
+    "ast_hash": "8a634cbf8d89f65821f77a6d0e53f585",
+    "semantic_hash": "8a634cbf8d89f65821f77a6d0e53f585"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/CLAUDE.md": {
+    "mtime": 1780319475.424976,
+    "ast_hash": "4f5bd3d26b34caeb9e1ed621b28ac1d2",
+    "semantic_hash": "4f5bd3d26b34caeb9e1ed621b28ac1d2"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/index.html": {
+    "mtime": 1779479530.0,
+    "ast_hash": "a83fd4da75307211926d5241cf6ac593",
+    "semantic_hash": "a83fd4da75307211926d5241cf6ac593"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/.github/workflows/release.yml": {
+    "mtime": 1779479530.0,
+    "ast_hash": "23ecb3f416f8a6e5131912154fa5793f",
+    "semantic_hash": "23ecb3f416f8a6e5131912154fa5793f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iPhone 15 Pro.imageset/iPhone 15 Pro.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ac73167a226e671211fc1894bd0c04d3",
+    "semantic_hash": "ac73167a226e671211fc1894bd0c04d3"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_256.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "9435cdcb313eba688745ae02b3a83e6d",
+    "semantic_hash": "9435cdcb313eba688745ae02b3a83e6d"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_32.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "83ba1f5d8e1671218d6078dd1963bc2f",
+    "semantic_hash": "83ba1f5d8e1671218d6078dd1963bc2f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_128.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "5f41bbc6fb267b063541ff6f471c939f",
+    "semantic_hash": "5f41bbc6fb267b063541ff6f471c939f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_512.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "87d1eb94af9566aa68c026b9915c54f3",
+    "semantic_hash": "87d1eb94af9566aa68c026b9915c54f3"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_16.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "6e21937bd70ac8f6e438e6b2aa929eae",
+    "semantic_hash": "6e21937bd70ac8f6e438e6b2aa929eae"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_1024.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "a0153ba601cdd328419975cf2dcb30e7",
+    "semantic_hash": "a0153ba601cdd328419975cf2dcb30e7"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/AppIcon.appiconset/icon_64.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "7388f7b5ee2815f0b94c4f8f03585bf4",
+    "semantic_hash": "7388f7b5ee2815f0b94c4f8f03585bf4"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/mackbook frames/MacBook Pro 14.imageset/MacBook Pro 14.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "1b7056dfebf3baa066d2e80fe6816741",
+    "semantic_hash": "1b7056dfebf3baa066d2e80fe6816741"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - White Titanium.imageset/iPhone 16 Pro - White Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "094a0079bd1aa7586876adcfc16a412f",
+    "semantic_hash": "094a0079bd1aa7586876adcfc16a412f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Black Titanium.imageset/iPhone 15 Pro - Black Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "66438b72a41dddc3f47ed7d5ba48a2ff",
+    "semantic_hash": "66438b72a41dddc3f47ed7d5ba48a2ff"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Cosmic Orange.imageset/iPhone 17 Pro - Cosmic Orange.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ed93fe6c8096124cb1fbcdf8bc61f1f1",
+    "semantic_hash": "ed93fe6c8096124cb1fbcdf8bc61f1f1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Natural Titanium .imageset/iPhone 16 Pro - Natural Titanium .png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "aa8c521378841cf23688f0f0d8be0124",
+    "semantic_hash": "aa8c521378841cf23688f0f0d8be0124"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Gold Titanium.imageset/iPhone 16 Pro - Gold Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "f132bd5c1f036b75cf120e13e8b443d2",
+    "semantic_hash": "f132bd5c1f036b75cf120e13e8b443d2"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - Natural Titanium.imageset/iPhone 15 Pro - Natural Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "26e7d24dbf9ec10ccb0e22321ffb0ef0",
+    "semantic_hash": "26e7d24dbf9ec10ccb0e22321ffb0ef0"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Silver.imageset/iPhone 17 Pro - Silver.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "2c53987f8f8bde59da975986be4310f4",
+    "semantic_hash": "2c53987f8f8bde59da975986be4310f4"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 17 Pro - Deep Blue.imageset/iPhone 17 Pro - Deep Blue.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ea00537f540dd71182e61756cc4067fb",
+    "semantic_hash": "ea00537f540dd71182e61756cc4067fb"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 15 Pro - White Titanium.imageset/iPhone 15 Pro - White Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "0b505aaf9aebae2ef1eaa871aad17a3b",
+    "semantic_hash": "0b505aaf9aebae2ef1eaa871aad17a3b"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Assets.xcassets/iphone frames/iPhone 16 Pro - Black Titanium.imageset/iPhone 16 Pro - Black Titanium.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "ac73167a226e671211fc1894bd0c04d3",
+    "semantic_hash": "ac73167a226e671211fc1894bd0c04d3"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/icon.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "87d1eb94af9566aa68c026b9915c54f3",
+    "semantic_hash": "87d1eb94af9566aa68c026b9915c54f3"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/docs/screenshot.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "07e9b50480f753227aa95e132b544680",
+    "semantic_hash": "07e9b50480f753227aa95e132b544680"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/background.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "20e291d878ee0c6109ea2c0ceac7a69b",
+    "semantic_hash": "20e291d878ee0c6109ea2c0ceac7a69b"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/scripts/dmg-assets/background@2x.png": {
+    "mtime": 1779479530.0,
+    "ast_hash": "d6b02f23f17873769dac0f9f301f4705",
+    "semantic_hash": "d6b02f23f17873769dac0f9f301f4705"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/soft-reveal.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "2fe4a45578fec5358d3178630ae45365",
+    "semantic_hash": "2fe4a45578fec5358d3178630ae45365"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/quick-punch.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "b5c6e1c057383fa7ab12e4d26bd83b32",
+    "semantic_hash": "b5c6e1c057383fa7ab12e4d26bd83b32"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/bottom-focus.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "27f35412b905f50fe40595ec08d67030",
+    "semantic_hash": "27f35412b905f50fe40595ec08d67030"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/top-focus.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "4754bad5ddd2775b9bdc59e3ccdd6f05",
+    "semantic_hash": "4754bad5ddd2775b9bdc59e3ccdd6f05"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/Maya/Resources/PresetPreviews/dramatic.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "e938320f25b74fe2695945f996559e08",
+    "semantic_hash": "e938320f25b74fe2695945f996559e08"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/soft-reveal.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "8f374c73c2b93ecc9c8bfee39c586b0f",
+    "semantic_hash": "8f374c73c2b93ecc9c8bfee39c586b0f"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/quick-punch.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "51cfd4f5fc415e8fbd1bfff8812c8607",
+    "semantic_hash": "51cfd4f5fc415e8fbd1bfff8812c8607"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/bottom-focus.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "a4c45ebebf7e337c2c108bdac9c4b2f1",
+    "semantic_hash": "a4c45ebebf7e337c2c108bdac9c4b2f1"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/top-focus.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "a8b6252237e71af2867859120aad08d2",
+    "semantic_hash": "a8b6252237e71af2867859120aad08d2"
+  },
+  "/Volumes/SSD/Documents_Backups/vietvtc4/Documents_SSD/Tool/Maya/presets-videos/dramatic.mp4": {
+    "mtime": 1779479530.0,
+    "ast_hash": "a0078957cea424e0312a4095c5ac1aef",
+    "semantic_hash": "a0078957cea424e0312a4095c5ac1aef"
+  }
+}
