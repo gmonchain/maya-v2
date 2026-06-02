@@ -9,7 +9,7 @@ final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruct
     nonisolated(unsafe) var deviceFrame: DeviceFrame = .iPhone15Pro
     nonisolated(unsafe) var scale: CGFloat = 1.0
     nonisolated(unsafe) var offsetFraction: CGSize = .zero
-    nonisolated(unsafe) var sourceTrackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
+    nonisolated(unsafe) var sourceTrackIDs: [CMPersistentTrackID] = []
     nonisolated(unsafe) var backgroundImage: CIImage?
     nonisolated(unsafe) var frameOverlay: CIImage?
     nonisolated(unsafe) var naturalHeightFraction: CGFloat = 0.9
@@ -29,9 +29,7 @@ final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruct
     /// won't feed any frames into `request.sourceFrame(byTrackID:)` and the export fails
     /// with "source frame is missing". Critical for any custom AVVideoCompositing impl.
     nonisolated override var requiredSourceTrackIDs: [NSValue] {
-        sourceTrackID != kCMPersistentTrackID_Invalid
-            ? [NSNumber(value: sourceTrackID)]
-            : []
+        sourceTrackIDs.map { NSNumber(value: $0) }
     }
 
     nonisolated override var passthroughTrackID: CMPersistentTrackID {
@@ -89,7 +87,15 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
             request.finish(with: CompositorError.missingContext)
             return
         }
-        guard let sourceBuffer = request.sourceFrame(byTrackID: instruction.sourceTrackID) else {
+        // Try to get a source frame from the highest-priority (topmost) track.
+        var sourceBuffer: CVPixelBuffer?
+        for trackID in instruction.sourceTrackIDs.reversed() {
+            if let frame = request.sourceFrame(byTrackID: trackID) {
+                sourceBuffer = frame
+                break
+            }
+        }
+        guard let sourceBuffer else {
             request.finish(with: CompositorError.missingSource)
             return
         }

@@ -29,6 +29,14 @@ actor ExportService {
         let shadowColor: CIColor
         /// All clips on the timeline, ordered by their position.
         let clips: [VideoClip]
+        /// Additional audio clips (music, voiceover, SFX) layered on the timeline.
+        let audioClips: [AudioClip]
+        /// Blur radius applied to the background image (0 = sharp).
+        let backgroundBlurRadius: Double
+        /// User-selected export quality.
+        let exportQuality: ExportQuality
+        /// User-selected render size (short side in pixels).
+        let exportRenderSize: ExportRenderSize
     }
 
     func exportWithBackground(
@@ -52,34 +60,24 @@ actor ExportService {
     // MARK: - Animation shifting
 
     /// Maps source-time animations into composition-time coordinates for multi-clip export.
-    /// For each animation, finds the clip whose source range contains it, then calculates
-    /// its composition position as: (sum of preceding clip durations) + (animation start - clip trim start).
+    /// Clips are placed at their `timelineStart` in the composition, so the mapping is:
+    ///   compositionTime = clip.timelineStart + (animationSourceTime − clip.trimStartTime)
     nonisolated static func animationsForComposition(_ segments: [ZoomSegment], clips: [VideoClip]) -> [ZoomSegment] {
         guard !clips.isEmpty else { return [] }
         let minDuration = 0.4
-
-        // Build cumulative offsets: clipOffsets[i] = sum of durations of clips 0..<i
-        var clipOffsets: [Double] = []
-        var cumulative: Double = 0
-        for clip in clips {
-            clipOffsets.append(cumulative)
-            cumulative += clip.clipDuration
-        }
-        let totalCompositionDuration = cumulative
+        let totalCompositionDuration = clips.map(\.timelineEnd).max() ?? 0
 
         return segments.compactMap { seg in
             // Find which clip this animation's start falls in.
-            guard let (clipIndex, clip) = clips.enumerated().first(where: { _, clip in
+            guard let clip = clips.first(where: { clip in
                 seg.startTime >= clip.trimStartTime && seg.startTime < clip.trimEndTime
             }) else { return nil }
 
-            let compositionOffset = clipOffsets[clipIndex]
-            let localStart = seg.startTime - clip.trimStartTime
-            let clipDuration = clip.clipDuration
+            let compositionStart = clip.timelineStart + (seg.startTime - clip.trimStartTime)
 
             var s = seg
-            s.startTime = compositionOffset + localStart
-            let effectiveEnd = min(compositionOffset + clipDuration, s.startTime + s.duration)
+            s.startTime = compositionStart
+            let effectiveEnd = min(clip.timelineEnd, compositionStart + s.duration)
             s.duration = max(minDuration, effectiveEnd - s.startTime)
             // Clamp total composition
             if s.startTime >= totalCompositionDuration { return nil }
@@ -128,13 +126,17 @@ actor ExportService {
             backgroundImageCG: backgroundCG,
             frameOverlayCG: overlay,
             animations: project.animations,
-            renderSize: project.canvasAspect.renderSize,
+            renderSize: project.canvasAspect.renderSize(forShortSide: project.exportRenderSize.shortSide),
             bareCornerRadius: project.bareCornerRadius,
             bareBezelWidth: project.bareBezelWidth,
             bareBezelColor: (Color(hex: project.bareBezelHex) ?? .black).ciColor,
             shadow: project.shadow,
             shadowColor: (Color(hex: project.shadow.colorHex) ?? .black).ciColor,
-            clips: project.clips
+            clips: project.clips,
+            audioClips: project.audioClips,
+            backgroundBlurRadius: project.backgroundBlurRadius,
+            exportQuality: project.exportQuality,
+            exportRenderSize: project.exportRenderSize
         )
     }
 }

@@ -169,20 +169,23 @@ extension Project {
             id: UUID(),
             trimStartTime: clip.trimStartTime,
             trimEndTime: sourceSplitTime,
-            timelineStart: clip.timelineStart
+            timelineStart: clip.timelineStart,
+            trackIndex: clip.trackIndex
         )
 
         let rightClip = VideoClip(
             id: UUID(),
             trimStartTime: sourceSplitTime,
             trimEndTime: clip.trimEndTime,
-            timelineStart: timelinePos
+            timelineStart: timelinePos,
+            trackIndex: clip.trackIndex
         )
 
         clips.remove(at: clipIndex)
         clips.insert(contentsOf: [leftClip, rightClip], at: clipIndex)
 
         activeClipID = rightClip.id
+        cleanupTransitions()
     }
 
     // MARK: - Delete clip
@@ -191,11 +194,13 @@ extension Project {
         guard let idx = activeClipIndex, clips.count > 1 else { return }
         pushUndo()
         let deletedClip = clips[idx]
-        let gap = deletedClip.clipDuration
+        let gap = deletedClip.timelineDuration
+        let deletedTrack = deletedClip.trackIndex
 
         clips.remove(at: idx)
 
-        for i in idx..<clips.count {
+        // Ripple only clips on the same track
+        for i in idx..<clips.count where clips[i].trackIndex == deletedTrack {
             var clip = clips[i]
             clip.timelineStart = max(0, clip.timelineStart - gap)
             clips[i] = clip
@@ -212,23 +217,25 @@ extension Project {
                 seg.startTime >= clip.trimStartTime && seg.startTime < clip.trimEndTime
             })
         }
+        cleanupTransitions()
     }
 
     // MARK: - Snap / Overlap
 
     /// Given a proposed timeline start for a clip at `clipIndex`, snaps it to the
-    /// nearest edge of another clip if within `threshold` seconds, then ensures
-    /// the final position does not overlap any other clip (in snap mode).
+    /// nearest edge of another clip on the SAME TRACK if within `threshold` seconds,
+    /// then ensures the final position does not overlap any other clip on the same track.
     func snapClipPosition(_ proposedStart: Double, duration clipDur: Double, excludingClipAt clipIndex: Int) -> Double {
         guard !allowClipOverlap, clips.count > 1 else { return proposedStart }
         let threshold: Double = 0.3
         let proposedEnd = proposedStart + clipDur
+        let track = clips[clipIndex].trackIndex
 
         var bestSnap = proposedStart
         var bestDistance = Double.infinity
 
         for (i, other) in clips.enumerated() {
-            guard i != clipIndex else { continue }
+            guard i != clipIndex, other.trackIndex == track else { continue }
             let otherStart = other.timelineStart
             let otherEnd = other.timelineEnd
 
@@ -252,7 +259,7 @@ extension Project {
         if wouldOverlap(start: bestSnap, duration: clipDur, excludingClipAt: clipIndex) {
             var pushTo: Double = 0
             for (i, other) in clips.enumerated() {
-                guard i != clipIndex else { continue }
+                guard i != clipIndex, other.trackIndex == track else { continue }
                 if other.timelineEnd <= bestSnap + clipDur && other.timelineEnd > pushTo {
                     pushTo = other.timelineEnd
                 }
@@ -264,16 +271,106 @@ extension Project {
     }
 
     /// Returns true if placing a clip at `start` with `duration` would overlap
-    /// any other clip (excluding the clip at `excludeIndex`).
+    /// any other clip on the same track (excluding the clip at `excludeIndex`).
     func wouldOverlap(start: Double, duration clipDur: Double, excludingClipAt excludeIndex: Int) -> Bool {
         guard !allowClipOverlap else { return false }
         let end = start + clipDur
+        let track = clips[excludeIndex].trackIndex
         for (i, other) in clips.enumerated() {
-            guard i != excludeIndex else { continue }
+            guard i != excludeIndex, other.trackIndex == track else { continue }
             if start < other.timelineEnd && end > other.timelineStart {
                 return true
             }
         }
         return false
+    }
+
+    // MARK: - Transitions
+
+    /// Returns the transition between two clips, if any exists.
+    func transition(between beforeID: UUID, and afterID: UUID) -> Transition? {
+        transitions.first { $0.clipBeforeID == beforeID && $0.clipAfterID == afterID }
+    }
+
+    /// Returns the transition at the boundary of two adjacent clips on the same track.
+    /// Finds clips on the same track where one ends near where the other begins.
+    func transition(betweenClipsAt timelinePosition: Double, onTrack track: Int) -> Transition? {
+        // Find clips on this track adjacent to the position
+        let trackClips = clips
+            .filter { $0.trackIndex == track }
+            .sorted { $0.timelineStart < $1.timelineStart }
+
+        for i in 0..<(trackClips.count - 1) {
+            let clip = trackClips[i]
+            let nextClip = trackClips[i + 1]
+            // Check if position is near the boundary between these two clips
+            if abs(timelinePosition - clip.timelineEnd) < 0.5 ||
+               abs(timelinePosition - nextClip.timelineStart) < 0.5 {
+                return transition(between: clip.id, and: nextClip.id)
+            }
+        }
+        return nil
+    }
+
+    /// Adds or updates a transition between two clips.
+    @discardableResult
+    func addTransition(beforeID: UUID, afterID: UUID, type: TransitionType = .fade) -> Transition {
+        pushUndo()
+        // Check if transition already exists
+        if let existing = transition(between: beforeID, and: afterID) {
+            if let idx = transitions.firstIndex(where: { $0.id == existing.id }) {
+                transitions[idx].type = type
+                selectedTransitionID = existing.id
+                return transitions[idx]
+            }
+        }
+        let t = Transition(clipBeforeID: beforeID, clipAfterID: afterID, type: type)
+        transitions.append(t)
+        selectedTransitionID = t.id
+        return t
+    }
+
+    /// Removes a transition by ID.
+    func removeTransition(id: UUID) {
+        pushUndo()
+        transitions.removeAll { $0.id == id }
+        if selectedTransitionID == id {
+            selectedTransitionID = nil
+        }
+    }
+
+    /// Updates a transition's properties.
+    func updateTransition(_ transition: Transition) {
+        guard let idx = transitions.firstIndex(where: { $0.id == transition.id }) else { return }
+        transitions[idx] = transition
+    }
+
+    /// Removes transitions that reference deleted clips.
+    func cleanupTransitions() {
+        let clipIDs = Set(clips.map(\.id))
+        transitions.removeAll { !clipIDs.contains($0.clipBeforeID) || !clipIDs.contains($0.clipAfterID) }
+        if let selID = selectedTransitionID, !transitions.contains(where: { $0.id == selID }) {
+            selectedTransitionID = nil
+        }
+    }
+
+    /// Returns the active transition at the current playhead position, if any.
+    /// Also returns the progress through the transition (0.0 to 1.0).
+    func activeTransition(at time: Double) -> (transition: Transition, progress: Double)? {
+        for transition in transitions {
+            guard let beforeClip = clips.first(where: { $0.id == transition.clipBeforeID }),
+                  let afterClip = clips.first(where: { $0.id == transition.clipAfterID }) else {
+                continue
+            }
+
+            let transitionStart = beforeClip.timelineEnd - transition.duration
+            let transitionEnd = beforeClip.timelineEnd
+
+            if time >= transitionStart && time <= transitionEnd {
+                let progress = (time - transitionStart) / transition.duration
+                return (transition, progress)
+            }
+        }
+        return nil
     }
 }

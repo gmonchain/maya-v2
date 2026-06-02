@@ -1,70 +1,210 @@
 import AVFoundation
 import SwiftUI
 
+extension Notification.Name {
+    static let importVideo = Notification.Name("importVideo")
+}
+
 /// Compact transport bar above the tracks. Play/pause, current time, total/trimmed duration,
 /// trim badge with reset, and a mute toggle. Kept slim so the timeline still has room.
 struct TimelineToolbar: View {
     @Bindable var project: Project
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button(action: { project.togglePlayback() }) {
-                Image(systemName: project.player?.timeControlStatus == .playing ? "pause.fill" : "play.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 22)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.12))
-                    )
+        HStack(spacing: 16) {
+            // Group 1: Transport & Time
+            HStack(spacing: 8) {
+                openVideoButton
+                
+                playPauseButton
+                
+                timeDisplay
             }
-            .buttonStyle(.plain)
-            .help("Play/Pause (space)")
-
-            HStack(spacing: 4) {
-                Text(formatTimestamp(project.currentSeconds))
-                    .foregroundStyle(.white.opacity(0.95))
-                Text("/")
-                    .foregroundStyle(.white.opacity(0.5))
-                Text(formatTimestamp(displayedDuration))
-                    .foregroundStyle(.white.opacity(0.7))
+            
+            Divider()
+                .frame(height: 16)
+                .overlay(Color.white.opacity(0.2))
+            
+            // Group 2: Editing Tools
+            HStack(spacing: 6) {
+                splitButton
+                addZoomButton
             }
-            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-
-            splitButton
-            addZoomButton
-
+            
+            Divider()
+                .frame(height: 16)
+                .overlay(Color.white.opacity(0.2))
+            
+            // Group 3: Add/Import
+            HStack(spacing: 6) {
+                addTrackButton
+                addAudioButton
+            }
+            
             if project.isTrimmed {
                 clipsBadge
             }
-
+            
             Spacer()
-
+            
+            // Group 4: Settings & Controls
             HStack(spacing: 10) {
-                shortcutHint("I", description: "Mark in")
-                shortcutHint("O", description: "Mark out")
-                shortcutHint("⌫", description: "Reset trim")
-                shortcutHint("S", description: "Split")
+                playbackSpeedControl
+                overlapToggleButton
+                muteButton
+                moreMenuButton
             }
-            .help("Keyboard shortcuts")
-
-            overlapToggleButton
-
-            Button(action: { project.toggleMute() }) {
-                Image(systemName: project.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .help(project.isMuted ? "Unmute (m)" : "Mute (m)")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+    
+    // MARK: - Component Views
+    
+    private var playPauseButton: some View {
+        Button(action: { project.togglePlayback() }) {
+            Image(systemName: project.player?.timeControlStatus == .playing ? "pause.fill" : "play.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.white.opacity(0.15))
+                )
+        }
+        .buttonStyle(.plain)
+        .hoverLabel("Play/Pause (space)")
+    }
+    
+    private var timeDisplay: some View {
+        HStack(spacing: 4) {
+            Text(formatTimestamp(project.currentSeconds))
+                .foregroundStyle(.white.opacity(0.95))
+            Text("/")
+                .foregroundStyle(.white.opacity(0.4))
+            Text(formatTimestamp(displayedDuration))
+                .foregroundStyle(.white.opacity(0.6))
+        }
+        .font(.system(size: 11, weight: .medium, design: .monospaced))
+    }
+    
+    private var muteButton: some View {
+        Button(action: { project.toggleMute() }) {
+            Image(systemName: project.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(project.isMuted ? .white.opacity(0.5) : .white.opacity(0.85))
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.white.opacity(0.12))
+                )
+        }
+        .buttonStyle(.plain)
+        .hoverLabel(project.isMuted ? "Unmute (m)" : "Mute (m)")
+    }
+    
+    private var moreMenuButton: some View {
+        Menu {
+            Section("Keyboard Shortcuts") {
+                Label("Play/Pause: Space", systemImage: "play.fill")
+                Label("Mark In: I", systemImage: "inlet.left")
+                Label("Mark Out: O", systemImage: "inlet.right")
+                Label("Reset Trim: ⌥⌫", systemImage: "arrow.counterclockwise")
+                Label("Split: S", systemImage: "scissors")
+                Label("Scrub ←/→: Arrow keys", systemImage: "arrow.left.arrow.right")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.white.opacity(0.12))
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .hoverLabel("More")
     }
 
     private var displayedDuration: Double {
         project.timelineDuration
+    }
+
+    // MARK: - Open Video button
+
+    private var openVideoButton: some View {
+        Button(action: openVideoPicker) {
+            Image(systemName: "film.stack")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: "#6466FA") ?? .accentColor)
+                )
+        }
+        .buttonStyle(.plain)
+        .hoverLabel("Open Video")
+    }
+
+    private func openVideoPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .movie, .video]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            NotificationCenter.default.post(
+                name: .importVideo,
+                object: nil,
+                userInfo: ["url": url]
+            )
+        }
+    }
+
+    // MARK: - Playback Speed
+
+    private static let speedOptions: [(label: String, value: Double)] = [
+        ("0.5x", 0.5),
+        ("1x", 1.0),
+        ("1.5x", 1.5),
+        ("2x", 2.0),
+    ]
+
+    private var playbackSpeedControl: some View {
+        Menu {
+            ForEach(Self.speedOptions, id: \.label) { option in
+                Button {
+                    project.playbackSpeed = option.value
+                } label: {
+                    HStack {
+                        Text(option.label)
+                        if project.playbackSpeed == option.value {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(String(format: "%.1fx", project.playbackSpeed))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.white)
+            .frame(width: 48, height: 24)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.white.opacity(0.12))
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .hoverLabel("Speed")
     }
 
     // MARK: - Split button
@@ -73,24 +213,19 @@ struct TimelineToolbar: View {
         Button(action: {
             project.splitAtPlayhead()
         }) {
-            HStack(spacing: 4) {
-                Image(systemName: "scissors")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("Split")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(red: 1.0, green: 0.82, blue: 0.10))
-            )
+            Image(systemName: "scissors")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(red: 1.0, green: 0.82, blue: 0.10))
+                )
         }
         .buttonStyle(.plain)
         .disabled(project.videoURL == nil || !canSplit)
         .opacity(project.videoURL == nil || !canSplit ? 0.4 : 1.0)
-        .help("Split clip at playhead (S)")
+        .hoverLabel("Split (S)")
     }
 
     /// The playhead must be inside a clip (not at its very edges) to allow splitting.
@@ -106,24 +241,19 @@ struct TimelineToolbar: View {
     /// existing segment, selects it instead of stacking a new one on top.
     private var addZoomButton: some View {
         Button(action: addZoomAtPlayhead) {
-            HStack(spacing: 4) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("Add zoom")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(hex: "#6466FA") ?? .accentColor)
-            )
+            Image(systemName: "plus.magnifyingglass")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: "#6466FA") ?? .accentColor)
+                )
         }
         .buttonStyle(.plain)
         .disabled(project.videoURL == nil)
         .opacity(project.videoURL == nil ? 0.4 : 1.0)
-        .help("Add a zoom at the playhead")
+        .hoverLabel("Add Zoom")
     }
 
     private func addZoomAtPlayhead() {
@@ -134,6 +264,54 @@ struct TimelineToolbar: View {
             return
         }
         _ = project.addZoomSegment(at: t)
+    }
+
+    // MARK: - Add track button
+
+    private var addTrackButton: some View {
+        Button(action: { project.addTrack() }) {
+            Image(systemName: "rectangle.stack.badge.plus")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: "#3AA655") ?? Color.green)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(project.videoURL == nil)
+        .opacity(project.videoURL == nil ? 0.4 : 1.0)
+        .hoverLabel("Add Track")
+    }
+
+    // MARK: - Add audio button
+
+    private var addAudioButton: some View {
+        Button(action: { openAudioPicker() }) {
+            Image(systemName: "waveform.badge.plus")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color(hex: "#4A9EE0") ?? Color.blue)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(project.videoURL == nil)
+        .opacity(project.videoURL == nil ? 0.4 : 1.0)
+        .hoverLabel("Add Audio")
+    }
+
+    private func openAudioPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.mp3, .mpeg4Audio, .wav, .aiff, .appleScript, .audio]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            project.addAudioClip(from: url)
+        }
     }
 
     // MARK: - Clips badge
@@ -169,7 +347,7 @@ struct TimelineToolbar: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.7))
-                .help("Reset to single clip")
+                .hoverLabel("Reset Clips")
             }
         }
         .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -205,23 +383,60 @@ struct TimelineToolbar: View {
         Button(action: {
             project.allowClipOverlap.toggle()
         }) {
-            HStack(spacing: 4) {
-                Image(systemName: project.allowClipOverlap ? "rectangle.stack" : "rectangle.dashed")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(project.allowClipOverlap ? "Overlap" : "Snap")
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(project.allowClipOverlap
-                        ? (Color(hex: "#6466FA") ?? .accentColor)
-                        : Color.white.opacity(0.12))
-            )
+            Image(systemName: project.allowClipOverlap ? "rectangle.stack.fill" : "rectangle.dashed")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(project.allowClipOverlap ? .white : .white.opacity(0.7))
+                .frame(width: 28, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(project.allowClipOverlap
+                            ? (Color(hex: "#6466FA") ?? .accentColor)
+                            : Color.white.opacity(0.12))
+                )
         }
         .buttonStyle(.plain)
-        .help(project.allowClipOverlap ? "Overlap mode: clips can overlap (click to snap)" : "Snap mode: clips snap to edges (click to overlap)")
+        .hoverLabel(project.allowClipOverlap ? "Overlap Mode" : "Snap Mode")
+    }
+}
+
+// MARK: - Hover Label Modifier
+
+private struct HoverLabelModifier: ViewModifier {
+    let text: String
+    @State private var isHovering = false
+    
+    func body(content: Content) -> some View {
+        ZStack(alignment: .top) {
+            content
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isHovering = hovering
+                    }
+                }
+            
+            if isHovering {
+                Text(text)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.black.opacity(0.9))
+                            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                    )
+                    .fixedSize()
+                    .offset(y: -28)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+        }
+        .fixedSize()
+    }
+}
+
+extension View {
+    func hoverLabel(_ text: String) -> some View {
+        modifier(HoverLabelModifier(text: text))
     }
 }

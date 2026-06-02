@@ -88,6 +88,7 @@ struct FramedDeviceView: View {
     var body: some View {
         let s = sampled
         let ref = offsetReference
+        let activeTransition = project.activeTransition(at: project.currentSeconds)
         ZStack(alignment: .topLeading) {
             // 1. Drop shadow caster sitting *behind* the video. We render the
             //    silhouette in its own layer (a duplicate of the device frame
@@ -125,6 +126,11 @@ struct FramedDeviceView: View {
         .offset(
             x: s.offsetX * ref,
             y: s.offsetY * ref
+        )
+        .modifier(
+            activeTransition.map { t in
+                TransitionModifier(type: t.transition.type, progress: t.progress, intensity: t.transition.intensity, direction: t.transition.direction)
+            } ?? TransitionModifier(type: .fade, progress: 1.0, intensity: 1.0, direction: .right)
         )
         .gesture(
             DragGesture()

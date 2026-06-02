@@ -18,41 +18,75 @@ extension ExportService {
         guard let sourceVideoTrack = videoTracks.first else { throw ExportError.noVideoTrack }
 
         let composition = AVMutableComposition()
-        guard let compositionVideoTrack = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ) else { throw ExportError.cannotBuildComposition }
 
-        // Insert each clip's trimmed range into the composition sequentially.
-        var insertTime: CMTime = .zero
-        for clip in snapshot.clips {
-            let range = CMTimeRange(
-                start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
-                duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
-            )
-            try compositionVideoTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertTime)
-            insertTime = CMTimeAdd(insertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+        // Group clips by track, sort each group by timelineStart, and insert
+        // each clip at its actual timeline position so gaps and multi-track
+        // layouts are preserved in the exported video.
+        let trackGroups = Dictionary(grouping: snapshot.clips) { $0.trackIndex }
+        let sortedTrackIndices = trackGroups.keys.sorted()
+        var compositionTracks: [Int: AVMutableCompositionTrack] = [:]
+        var sourceTrackIDs: [CMPersistentTrackID] = []
+
+        for trackIndex in sortedTrackIndices {
+            guard let compTrack = composition.addMutableTrack(
+                withMediaType: .video,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) else { throw ExportError.cannotBuildComposition }
+            compositionTracks[trackIndex] = compTrack
+            sourceTrackIDs.append(compTrack.trackID)
+
+            let trackClips = (trackGroups[trackIndex] ?? []).sorted { $0.timelineStart < $1.timelineStart }
+            for clip in trackClips {
+                let range = CMTimeRange(
+                    start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                    duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                )
+                let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
+                try compTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertAt)
+            }
         }
 
-        // Audio passthrough — same pattern.
+        // Audio passthrough — single track, all clips placed at their timelineStart.
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         if let sourceAudio = audioTracks.first,
            let compositionAudio = composition.addMutableTrack(
             withMediaType: .audio,
             preferredTrackID: kCMPersistentTrackID_Invalid
            ) {
-            var audioInsertTime: CMTime = .zero
-            for clip in snapshot.clips {
+            let sortedClips = snapshot.clips.sorted { $0.timelineStart < $1.timelineStart }
+            for clip in sortedClips {
                 let range = CMTimeRange(
                     start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
                     duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
                 )
-                try? compositionAudio.insertTimeRange(range, of: sourceAudio, at: audioInsertTime)
-                audioInsertTime = CMTimeAdd(audioInsertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+                let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
+                try? compositionAudio.insertTimeRange(range, of: sourceAudio, at: insertAt)
             }
         }
 
-        let totalDuration = insertTime
+        // Additional audio clips (music, voiceover, SFX)
+        for audioClip in snapshot.audioClips where !audioClip.isMuted {
+            let audioAsset = AVURLAsset(url: audioClip.sourceURL)
+            guard let sourceAudioTrack = try? await audioAsset.loadTracks(withMediaType: .audio).first else { continue }
+            guard let compAudioTrack = composition.addMutableTrack(
+                withMediaType: .audio,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) else { continue }
+            let range = CMTimeRange(
+                start: CMTime(seconds: audioClip.trimStartTime, preferredTimescale: 600),
+                duration: CMTime(seconds: audioClip.clipDuration, preferredTimescale: 600)
+            )
+            let insertAt = CMTime(seconds: audioClip.timelineStart, preferredTimescale: 600)
+            try? compAudioTrack.insertTimeRange(range, of: sourceAudioTrack, at: insertAt)
+            // Apply volume via audio mix
+            let params = AVMutableAudioMixInputParameters(track: compAudioTrack)
+            params.setVolume(Float(audioClip.volume), at: .zero)
+            // TODO: support per-clip volume ramping if needed in the future
+        }
+
+        let totalDuration = snapshot.clips.map(\.timelineEnd).max().map {
+            CMTime(seconds: $0, preferredTimescale: 600)
+        } ?? .zero
         let renderSize = snapshot.renderSize
         let frameDuration = try await sourceVideoTrack.load(.minFrameDuration)
         let fps = frameDuration == .invalid || frameDuration.seconds <= 0 ? CMTime(value: 1, timescale: 60) : frameDuration
@@ -65,7 +99,7 @@ extension ExportService {
         instruction.deviceFrame = snapshot.deviceFrame
         instruction.scale = snapshot.scale
         instruction.offsetFraction = snapshot.offsetFraction
-        instruction.sourceTrackID = compositionVideoTrack.trackID
+        instruction.sourceTrackIDs = sourceTrackIDs
         instruction.backgroundImage = backgroundImage
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = false
@@ -83,11 +117,11 @@ extension ExportService {
         videoComposition.customVideoCompositorClass = DeviceFrameCompositor.self
         videoComposition.instructions = [instruction]
 
-        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+        guard let session = AVAssetExportSession(asset: composition, presetName: snapshot.exportQuality.backgroundPreset) else {
             throw ExportError.cannotInitExportSession
         }
         session.videoComposition = videoComposition
-        session.shouldOptimizeForNetworkUse = true
+        session.shouldOptimizeForNetworkUse = snapshot.exportQuality != .ultra
 
         if FileManager.default.fileExists(atPath: outputURL.path) {
             try FileManager.default.removeItem(at: outputURL)
@@ -115,7 +149,11 @@ extension ExportService {
         switch snapshot.background {
         case .solid(let hex):
             let color = (Color(hex: hex) ?? .black).ciColor
-            return CIImage(color: color).cropped(to: rect)
+            var result = CIImage(color: color).cropped(to: rect)
+            if snapshot.backgroundBlurRadius > 0 {
+                result = result.applyingGaussianBlur(sigma: snapshot.backgroundBlurRadius * 2).cropped(to: rect)
+            }
+            return result
         case .gradient(let spec):
             let filter = CIFilter.linearGradient()
             filter.color0 = spec.startColor.ciColor
@@ -125,7 +163,11 @@ extension ExportService {
             let mid = CGPoint(x: size.width / 2, y: size.height / 2)
             filter.point0 = CGPoint(x: mid.x - cos(r) * half, y: mid.y - sin(r) * half)
             filter.point1 = CGPoint(x: mid.x + cos(r) * half, y: mid.y + sin(r) * half)
-            return (filter.outputImage ?? CIImage(color: .black)).cropped(to: rect)
+            var result = (filter.outputImage ?? CIImage(color: .black)).cropped(to: rect)
+            if snapshot.backgroundBlurRadius > 0 {
+                result = result.applyingGaussianBlur(sigma: snapshot.backgroundBlurRadius * 2).cropped(to: rect)
+            }
+            return result
         case .image:
             if let cg = snapshot.backgroundImageCG {
                 let img = CIImage(cgImage: cg)
@@ -137,7 +179,11 @@ extension ExportService {
                     translationX: rect.midX - scaled.extent.midX,
                     y: rect.midY - scaled.extent.midY
                 ))
-                return scaled.cropped(to: rect)
+                var result = scaled.cropped(to: rect)
+                if snapshot.backgroundBlurRadius > 0 {
+                    result = result.applyingGaussianBlur(sigma: snapshot.backgroundBlurRadius * 2).cropped(to: rect)
+                }
+                return result
             }
             return CIImage(color: .black).cropped(to: rect)
         case .videoBlur:

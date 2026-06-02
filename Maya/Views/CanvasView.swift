@@ -21,7 +21,7 @@ struct CanvasView: View {
             }()
 
             ZStack {
-                BackgroundView(background: project.background, blurPoster: blurPoster)
+                BackgroundView(background: project.background, blurPoster: blurPoster, blurRadius: project.backgroundBlurRadius)
                     .frame(width: canvasSize.width, height: canvasSize.height)
                     .clipped()
 

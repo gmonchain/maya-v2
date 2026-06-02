@@ -12,27 +12,37 @@ struct VideoClip: Identifiable, Equatable, Sendable {
     /// Position on the project timeline (seconds).
     /// Independent from source times — the user can slide clips around.
     var timelineStart: Double
+    /// Which track row this clip sits on (0 = bottom track).
+    var trackIndex: Int = 0
+    /// Playback speed multiplier (1.0 = normal, 2.0 = double speed, 0.5 = half speed).
+    var speed: Double = 1.0
 
     /// Duration of the clip content (source out - source in).
     var clipDuration: Double { max(0, trimEndTime - trimStartTime) }
 
+    /// Duration on the timeline (accounting for playback speed).
+    /// At 2x speed, a 60s source clip takes 30s on timeline.
+    var timelineDuration: Double { clipDuration / speed }
+
     /// Right edge on the project timeline.
-    var timelineEnd: Double { timelineStart + clipDuration }
+    var timelineEnd: Double { timelineStart + timelineDuration }
 
     /// Minimum duration a clip can be trimmed down to.
     static let minDuration: Double = 0.5
 
     /// Converts a project-timeline second to its source-video second within this clip.
     /// Outside the clip's timeline window, the closest source edge is returned.
+    /// Accounts for playback speed: timeline duration = source duration / speed.
     func timelineToSource(_ t: Double) -> Double {
         if t <= timelineStart { return trimStartTime }
         if t >= timelineEnd { return trimEndTime }
-        return trimStartTime + (t - timelineStart)
+        return trimStartTime + (t - timelineStart) * speed
     }
 
     /// Inverse: source-video second to timeline second.
+    /// Accounts for playback speed.
     func sourceToTimeline(_ s: Double) -> Double {
-        timelineStart + (s - trimStartTime)
+        timelineStart + (s - trimStartTime) / speed
     }
 }
 

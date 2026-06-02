@@ -79,6 +79,10 @@ struct BackgroundPicker: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            if selectedKind == .solid || selectedKind == .gradient || selectedKind == .image {
+                blurSlider
+            }
         }
     }
 
@@ -118,6 +122,23 @@ struct BackgroundPicker: View {
                     .foregroundStyle(.secondary)
             }
             Button("Choose image…") { chooseImage() }
+        }
+    }
+
+    private var blurSlider: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Blur").font(.caption.weight(.medium))
+                Spacer()
+                Text("\(Int(project.backgroundBlurRadius.rounded()))")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Slider(
+                value: $project.backgroundBlurRadius,
+                in: 0...40,
+                step: 1
+            )
         }
     }
 
@@ -162,6 +183,7 @@ struct BackgroundPicker: View {
         switch selectedKind {
         case .none:
             project.background = .none
+            project.backgroundBlurRadius = 0
         case .solid:
             project.background = .solid(hex: solidHex)
         case .gradient:
@@ -174,6 +196,7 @@ struct BackgroundPicker: View {
             }
         case .videoBlur:
             project.background = .videoBlur
+            project.backgroundBlurRadius = 0
         }
     }
 

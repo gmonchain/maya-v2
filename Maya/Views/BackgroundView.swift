@@ -15,31 +15,35 @@ extension GradientSpec {
 struct BackgroundView: View {
     let background: BackgroundOption
     let blurPoster: NSImage?
+    var blurRadius: Double = 0
 
     var body: some View {
-        switch background {
-        case .none:
-            TransparencyCheckerboard()
-        case .solid(let hex):
-            (Color(hex: hex) ?? .black)
-                .ignoresSafeArea()
-        case .gradient(let spec):
-            LinearGradient(
-                colors: [spec.startColor, spec.endColor],
-                startPoint: spec.startUnitPoint,
-                endPoint: spec.endUnitPoint
-            )
-        case .image(let url):
-            BackgroundImageView(url: url)
-        case .videoBlur:
-            if let poster = blurPoster {
-                Image(nsImage: poster)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Color.black
+        Group {
+            switch background {
+            case .none:
+                TransparencyCheckerboard()
+            case .solid(let hex):
+                (Color(hex: hex) ?? .black)
+                    .ignoresSafeArea()
+            case .gradient(let spec):
+                LinearGradient(
+                    colors: [spec.startColor, spec.endColor],
+                    startPoint: spec.startUnitPoint,
+                    endPoint: spec.endUnitPoint
+                )
+            case .image(let url):
+                BackgroundImageView(url: url)
+            case .videoBlur:
+                if let poster = blurPoster {
+                    Image(nsImage: poster)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color.black
+                }
             }
         }
+        .blur(radius: blurRadius)
     }
 }
 

@@ -12,8 +12,19 @@ struct TimelineView: View {
     private let rowLabelWidth: CGFloat = 96
     private let rulerHeight: CGFloat = 20
     private let animationsHeight: CGFloat = 60
-    private let videoHeight: CGFloat = 56
+    private let trackHeight: CGFloat = 56
+    private let audioTrackHeight: CGFloat = 40
     private let thumbnailCount: Int = 18
+
+    /// Dynamic height: one row per track + spacing between tracks.
+    private var videoHeight: CGFloat {
+        CGFloat(project.trackCount) * trackHeight + CGFloat(max(0, project.trackCount - 1)) * 2
+    }
+
+    /// Audio section height — only shown when audio clips exist.
+    private var audioSectionHeight: CGFloat {
+        project.audioClips.isEmpty ? 0 : audioTrackHeight + 4
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,6 +62,16 @@ struct TimelineView: View {
             }
             .foregroundStyle(.white.opacity(0.85))
             .frame(height: videoHeight, alignment: .center)
+
+            if !project.audioClips.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                    Text("Audio")
+                        .font(.callout.weight(.semibold))
+                }
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(height: audioTrackHeight, alignment: .center)
+            }
         }
         .frame(width: rowLabelWidth, alignment: .leading)
     }
@@ -59,7 +80,7 @@ struct TimelineView: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             let duration = project.timelineDuration
-            let totalHeight = rulerHeight + animationsHeight + videoHeight + 8
+            let totalHeight = rulerHeight + animationsHeight + videoHeight + audioSectionHeight + 8
 
             ZStack(alignment: .topLeading) {
                 VStack(spacing: 4) {
@@ -71,9 +92,15 @@ struct TimelineView: View {
                     )
                     TrimmableVideoClip(
                         project: project,
-                        height: videoHeight,
+                        height: trackHeight,
                         thumbnailCount: thumbnailCount
                     )
+                    if !project.audioClips.isEmpty {
+                        AudioTrackView(
+                            project: project,
+                            height: audioTrackHeight
+                        )
+                    }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(coordinateSpace: .local) { point in
@@ -105,7 +132,7 @@ struct TimelineView: View {
             }
             .coordinateSpace(name: "tracksSpace")
         }
-        .frame(height: rulerHeight + animationsHeight + videoHeight + 8)
+        .frame(height: rulerHeight + animationsHeight + videoHeight + audioSectionHeight + 8)
     }
 
 }

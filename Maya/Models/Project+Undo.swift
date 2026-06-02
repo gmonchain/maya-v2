@@ -9,12 +9,18 @@ import SwiftUI
 struct ProjectSnapshot: Equatable, Sendable {
     var clips: [VideoClip]
     var activeClipID: UUID?
+    var trackCount: Int
     var animations: [ZoomSegment]
     var selectedAnimationID: ZoomSegment.ID?
     var scale: CGFloat
     var offset: CGSize
     var background: BackgroundOption
     var shadow: PhoneShadow
+    var audioClips: [AudioClip]
+    var activeAudioClipID: UUID?
+    var backgroundBlurRadius: Double
+    var exportQuality: ExportQuality
+    var exportRenderSize: ExportRenderSize
 }
 
 // MARK: - Undo / Redo
@@ -51,23 +57,35 @@ extension Project {
         ProjectSnapshot(
             clips: clips,
             activeClipID: activeClipID,
+            trackCount: trackCount,
             animations: animations,
             selectedAnimationID: selectedAnimationID,
             scale: scale,
             offset: offset,
             background: background,
-            shadow: shadow
+            shadow: shadow,
+            audioClips: audioClips,
+            activeAudioClipID: activeAudioClipID,
+            backgroundBlurRadius: backgroundBlurRadius,
+            exportQuality: exportQuality,
+            exportRenderSize: exportRenderSize
         )
     }
 
     func restore(from snapshot: ProjectSnapshot) {
         clips = snapshot.clips
         activeClipID = snapshot.activeClipID
+        trackCount = snapshot.trackCount
         animations = snapshot.animations
         selectedAnimationID = snapshot.selectedAnimationID
         scale = snapshot.scale
         offset = snapshot.offset
         background = snapshot.background
         shadow = snapshot.shadow
+        audioClips = snapshot.audioClips
+        activeAudioClipID = snapshot.activeAudioClipID
+        backgroundBlurRadius = snapshot.backgroundBlurRadius
+        exportQuality = snapshot.exportQuality
+        exportRenderSize = snapshot.exportRenderSize
     }
 }

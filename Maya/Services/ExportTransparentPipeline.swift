@@ -26,47 +26,78 @@ extension ExportService {
 
         // Build a composition from all clips so the reader produces the right sequence.
         let composition = AVMutableComposition()
-        guard let compVideoTrack = composition.addMutableTrack(
-            withMediaType: .video,
-            preferredTrackID: kCMPersistentTrackID_Invalid
-        ) else { throw ExportError.cannotBuildComposition }
 
-        var insertTime: CMTime = .zero
-        for clip in snapshot.clips {
-            let range = CMTimeRange(
-                start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
-                duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
-            )
-            try compVideoTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertTime)
-            insertTime = CMTimeAdd(insertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+        // Group clips by track, sort each group by timelineStart, and insert
+        // each clip at its actual timeline position so gaps and multi-track
+        // layouts are preserved in the exported video.
+        let trackGroups = Dictionary(grouping: snapshot.clips) { $0.trackIndex }
+        let sortedTrackIndices = trackGroups.keys.sorted()
+        var compositionTracks: [Int: AVMutableCompositionTrack] = [:]
+        var sourceTrackIDs: [CMPersistentTrackID] = []
+
+        for trackIndex in sortedTrackIndices {
+            guard let compTrack = composition.addMutableTrack(
+                withMediaType: .video,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) else { throw ExportError.cannotBuildComposition }
+            compositionTracks[trackIndex] = compTrack
+            sourceTrackIDs.append(compTrack.trackID)
+
+            let trackClips = (trackGroups[trackIndex] ?? []).sorted { $0.timelineStart < $1.timelineStart }
+            for clip in trackClips {
+                let range = CMTimeRange(
+                    start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
+                    duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                )
+                let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
+                try compTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertAt)
+            }
         }
 
-        // Audio
+        // Audio passthrough — single track, all clips placed at their timelineStart.
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         if let sourceAudio = audioTracks.first,
            let compAudioTrack = composition.addMutableTrack(
             withMediaType: .audio,
             preferredTrackID: kCMPersistentTrackID_Invalid
            ) {
-            var audioInsertTime: CMTime = .zero
-            for clip in snapshot.clips {
+            let sortedClips = snapshot.clips.sorted { $0.timelineStart < $1.timelineStart }
+            for clip in sortedClips {
                 let range = CMTimeRange(
                     start: CMTime(seconds: clip.trimStartTime, preferredTimescale: 600),
                     duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
                 )
-                try? compAudioTrack.insertTimeRange(range, of: sourceAudio, at: audioInsertTime)
-                audioInsertTime = CMTimeAdd(audioInsertTime, CMTime(seconds: clip.clipDuration, preferredTimescale: 600))
+                let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
+                try? compAudioTrack.insertTimeRange(range, of: sourceAudio, at: insertAt)
             }
         }
 
-        let totalDuration = insertTime
+        // Additional audio clips (music, voiceover, SFX)
+        for audioClip in snapshot.audioClips where !audioClip.isMuted {
+            let audioAsset = AVURLAsset(url: audioClip.sourceURL)
+            guard let sourceAudioTrack = try? await audioAsset.loadTracks(withMediaType: .audio).first else { continue }
+            guard let compAudioTrack = composition.addMutableTrack(
+                withMediaType: .audio,
+                preferredTrackID: kCMPersistentTrackID_Invalid
+            ) else { continue }
+            let range = CMTimeRange(
+                start: CMTime(seconds: audioClip.trimStartTime, preferredTimescale: 600),
+                duration: CMTime(seconds: audioClip.clipDuration, preferredTimescale: 600)
+            )
+            let insertAt = CMTime(seconds: audioClip.timelineStart, preferredTimescale: 600)
+            try? compAudioTrack.insertTimeRange(range, of: sourceAudioTrack, at: insertAt)
+        }
+
+        let totalDuration = snapshot.clips.map(\.timelineEnd).max().map {
+            CMTime(seconds: $0, preferredTimescale: 600)
+        } ?? .zero
 
         let instruction = DeviceFrameCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: totalDuration)
         instruction.deviceFrame = snapshot.deviceFrame
         instruction.scale = snapshot.scale
         instruction.offsetFraction = snapshot.offsetFraction
-        instruction.sourceTrackID = compVideoTrack.trackID
+        instruction.sourceTrackIDs = sourceTrackIDs
         instruction.backgroundImage = nil
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = true
@@ -116,10 +147,16 @@ extension ExportService {
 
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
 
-        let videoCompressionProps: [String: Any] = [
-            kVTCompressionPropertyKey_Quality as String: 0.85,
+        var videoCompressionProps: [String: Any] = [
+            kVTCompressionPropertyKey_Quality as String: snapshot.exportQuality.transparentQuality,
             kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_PremultipliedAlpha
         ]
+        if let baseBitrate = snapshot.exportQuality.transparentBitrate {
+            // Scale bitrate proportionally to pixel count so higher resolutions
+            // don't suffer from undersized bitrate budgets.
+            let scaleFactor = snapshot.exportRenderSize.shortSide / 1080
+            videoCompressionProps[kVTCompressionPropertyKey_AverageBitRate as String] = Int(Double(baseBitrate) * scaleFactor * scaleFactor)
+        }
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.hevcWithAlpha,
             AVVideoWidthKey: Int(renderSize.width),

@@ -7,6 +7,13 @@ struct EditorView: View {
     @State private var project = Project()
     @State private var blurPoster: NSImage?
     @State private var exporter = ExportService()
+    @State private var projectURL: URL?
+    @State private var hasUnsavedChanges = false
+    
+    private let newProjectPublisher = NotificationCenter.default.publisher(for: .newProject)
+    private let openProjectPublisher = NotificationCenter.default.publisher(for: .openProject)
+    private let saveProjectPublisher = NotificationCenter.default.publisher(for: .saveProject)
+    private let importVideoPublisher = NotificationCenter.default.publisher(for: .importVideo)
 
     var body: some View {
         NavigationSplitView {
@@ -41,12 +48,46 @@ struct EditorView: View {
                     .background(Color(nsColor: .windowBackgroundColor))
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+
+                if let transitionID = project.selectedTransitionID,
+                   project.transitions.contains(where: { $0.id == transitionID }) {
+                    Divider()
+                    TransitionPanel(project: project, transitionID: transitionID) {
+                        project.selectedTransitionID = nil
+                    }
+                    .frame(width: 340)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
             .animation(.easeInOut(duration: 0.2), value: project.selectedAnimationID)
+            .animation(.easeInOut(duration: 0.2), value: project.selectedTransitionID)
         }
-        .navigationTitle("Maya")
+        .navigationTitle(projectURL != nil ? projectURL!.deletingPathExtension().lastPathComponent : "Maya")
         .onChange(of: project.videoURL) { _, _ in updateBlurPoster() }
-        .onChange(of: project.background) { _, _ in updateBlurPoster() }
+        .onChange(of: project.background) { _, _ in
+            updateBlurPoster()
+            markDirty()
+        }
+        .onChange(of: project.scale) { _, _ in markDirty() }
+        .onChange(of: project.offset) { _, _ in markDirty() }
+        .onChange(of: project.animations) { _, _ in markDirty() }
+        .onChange(of: project.clips) { _, _ in markDirty() }
+        .onChange(of: project.shadow) { _, _ in markDirty() }
+        .onReceive(newProjectPublisher) { _ in
+            newProject()
+        }
+        .onReceive(openProjectPublisher) { _ in
+            openProject()
+        }
+        .onReceive(saveProjectPublisher) { _ in
+            saveProject()
+        }
+        .onReceive(importVideoPublisher) { notification in
+            if let url = notification.userInfo?["url"] as? URL {
+                importVideo(from: url)
+            }
+        }
     }
 
     /// Hidden buttons attach app-wide shortcuts without needing focus management.
@@ -176,6 +217,7 @@ struct EditorView: View {
                 project.isExporting = true
                 project.lastExportError = nil
                 project.exportProgress = 0
+                project.exportedFileURL = nil
                 do {
                     if isTransparent {
                         try await exporter.exportTransparent(
@@ -190,6 +232,7 @@ struct EditorView: View {
                             progress: { p in Task { @MainActor in project.exportProgress = p } }
                         )
                     }
+                    await MainActor.run { project.exportedFileURL = url }
                 } catch {
                     await MainActor.run { project.lastExportError = error.localizedDescription }
                 }
@@ -205,6 +248,82 @@ struct EditorView: View {
         panel.canCreateDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
             onPick(url)
+        }
+    }
+    
+    // MARK: - Project Save/Open
+    
+    private func markDirty() {
+        hasUnsavedChanges = true
+    }
+    
+    private func saveProject() {
+        if let existingURL = projectURL {
+            // Save to existing location
+            do {
+                try ProjectService.save(project: project, to: existingURL)
+                hasUnsavedChanges = false
+            } catch {
+                project.lastExportError = "Failed to save project: \(error.localizedDescription)"
+            }
+        } else {
+            // Save As
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = project.displayName ?? "Untitled"
+            panel.allowedContentTypes = [.init(filenameExtension: ProjectService.fileExtension) ?? .data]
+            panel.canCreateDirectories = true
+            panel.title = "Save Project"
+            
+            if panel.runModal() == .OK, let url = panel.url {
+                do {
+                    try ProjectService.save(project: project, to: url)
+                    projectURL = url
+                    hasUnsavedChanges = false
+                } catch {
+                    project.lastExportError = "Failed to save project: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    private func newProject() {
+        project = Project()
+        projectURL = nil
+        hasUnsavedChanges = false
+        blurPoster = nil
+    }
+    
+    private func openProject() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.init(filenameExtension: ProjectService.fileExtension) ?? .data]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.title = "Open Project"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                let loaded = try ProjectService.load(from: url)
+                
+                // Reset project state
+                project = Project()
+                projectURL = url
+                hasUnsavedChanges = false
+                
+                // Load the project
+                Task { @MainActor in
+                    await project.loadFromProjectFile(
+                        loaded.projectFile,
+                        videoURL: loaded.videoURL,
+                        audioURLs: loaded.audioURLs,
+                        imageURLs: loaded.imageURLs
+                    )
+                    blurPoster = nil
+                    updateBlurPoster()
+                }
+            } catch {
+                project.lastExportError = "Failed to open project: \(error.localizedDescription)"
+            }
         }
     }
 }

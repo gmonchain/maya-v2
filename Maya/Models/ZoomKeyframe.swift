@@ -23,7 +23,7 @@ enum ZoomFocus: String, Hashable, Sendable, CaseIterable, Identifiable {
     }
 }
 
-enum AnimationCurve: String, Hashable, Sendable, CaseIterable, Identifiable {
+enum AnimationCurve: String, Hashable, Sendable, Codable, CaseIterable, Identifiable {
     case spring   // back easing, ~12% overshoot
     case bouncy   // back easing, ~20% overshoot
     case smooth   // ease-in-out cubic, no overshoot

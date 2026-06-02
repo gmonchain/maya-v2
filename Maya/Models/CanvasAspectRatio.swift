@@ -45,12 +45,17 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
     /// for Reels/Shorts parity; landscape variants keep 1080 tall so HD
     /// (1920×1080) is the default for 16:9.
     var renderSize: CGSize {
+        renderSize(forShortSide: 1080)
+    }
+
+    /// Render size scaled so the short side equals `shortSide` pixels.
+    func renderSize(forShortSide shortSide: CGFloat) -> CGSize {
         switch self {
-        case .square:        return CGSize(width: 1080, height: 1080)
-        case .vertical9x16:  return CGSize(width: 1080, height: 1920)
-        case .vertical4x5:   return CGSize(width: 1080, height: 1350)
-        case .landscape4x3:  return CGSize(width: 1440, height: 1080)
-        case .landscape16x9: return CGSize(width: 1920, height: 1080)
+        case .square:        return CGSize(width: shortSide, height: shortSide)
+        case .vertical9x16:  return CGSize(width: shortSide, height: shortSide * 16.0 / 9.0)
+        case .vertical4x5:   return CGSize(width: shortSide, height: shortSide * 5.0 / 4.0)
+        case .landscape4x3:  return CGSize(width: shortSide * 4.0 / 3.0, height: shortSide)
+        case .landscape16x9: return CGSize(width: shortSide * 16.0 / 9.0, height: shortSide)
         }
     }
 

@@ -34,6 +34,8 @@ struct SettingsSidebar: View {
                 Divider()
                 BackgroundSection(project: project)
                 Divider()
+                AudioSection(project: project)
+                Divider()
                 exportSection
                 if let error = project.lastExportError {
                     Text(error)
@@ -98,6 +100,77 @@ struct SettingsSidebar: View {
             Text("Export")
                 .font(.headline)
 
+            if project.videoURL != nil && !project.isExporting {
+                // Render size picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Render size")
+                        .font(.caption.weight(.medium))
+                    HStack(spacing: 0) {
+                        ForEach(ExportRenderSize.allCases) { size in
+                            Button {
+                                project.exportRenderSize = size
+                            } label: {
+                                Text(size.displayName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        project.exportRenderSize == size
+                                            ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
+                                            : AnyShapeStyle(Color.clear)
+                                    )
+                                    .foregroundStyle(project.exportRenderSize == size ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
+                    )
+                }
+
+                // Quality picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Quality")
+                        .font(.caption.weight(.medium))
+                    HStack(spacing: 0) {
+                        ForEach(ExportQuality.allCases) { quality in
+                            Button {
+                                project.exportQuality = quality
+                            } label: {
+                                Text(quality.displayName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        project.exportQuality == quality
+                                            ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
+                                            : AnyShapeStyle(Color.clear)
+                                    )
+                                    .foregroundStyle(project.exportQuality == quality ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
+                    )
+                    Text(project.exportQuality.helpText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             ExportCardButton(
                 title: exportButtonTitle,
                 subtitle: exportSubtitle,
@@ -107,6 +180,53 @@ struct SettingsSidebar: View {
                 progress: project.exportProgress,
                 action: onExport
             )
+
+            if let fileURL = project.exportedFileURL,
+               FileManager.default.fileExists(atPath: fileURL.path) {
+                HStack(spacing: 6) {
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill")
+                            Text("Open")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(hex: "#6466FA")?.opacity(0.12) ?? Color.accentColor.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color(hex: "#6466FA")?.opacity(0.3) ?? Color.accentColor.opacity(0.3), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "folder")
+                            Text("Finder")
+                        }
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -123,7 +243,7 @@ struct SettingsSidebar: View {
     /// One-line subtitle shown under the export title. Pieces are joined with
     /// middle dots so it stays readable without breaking onto two rows.
     private var exportSubtitle: String {
-        let size = project.canvasAspect.renderSize
+        let size = project.canvasAspect.renderSize(forShortSide: project.exportRenderSize.shortSide)
         let dims = "\(Int(size.width))×\(Int(size.height))"
         let pieces: [String] = project.background.isTransparent
             ? [dims, "HEVC + α", "MOV"]
