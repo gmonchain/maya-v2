@@ -3,8 +3,11 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import CoreMedia
 import Foundation
+import OSLog
 import SwiftUI
 import VideoToolbox
+
+private let log = Logger(subsystem: "com.gmonchain.maya", category: "Export")
 
 actor ExportService {
     struct Snapshot: @unchecked Sendable {
@@ -16,6 +19,9 @@ actor ExportService {
         let background: BackgroundOption
         let blurPosterCG: CGImage?
         let backgroundImageCG: CGImage?
+        /// Source URL of a background video asset. Already inside the sandbox (or has
+        /// security-scope access granted during export).
+        let backgroundVideoURL: URL?
         /// nil when `deviceFrame.kind == .none` — the compositor skips the overlay step.
         let frameOverlayCG: CGImage?
         /// Animations in absolute source-video coordinates. Each export path shifts/filters
@@ -44,8 +50,19 @@ actor ExportService {
         to outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        let snap = try await MainActor.run { try ExportService.snapshot(from: project) }
-        try await runWithBackground(snapshot: snap, outputURL: outputURL, progress: progress)
+        log.info("▶ exportWithBackground START → output: \(outputURL.lastPathComponent, privacy: .public)")
+        let snap = try await MainActor.run {
+            log.debug("Building snapshot on MainActor")
+            return try ExportService.snapshot(from: project)
+        }
+        log.info("Snapshot built — render: \(Int(snap.renderSize.width))×\(Int(snap.renderSize.height)), clips: \(snap.clips.count), animations: \(snap.animations.count), bg: \(String(describing: snap.background), privacy: .public)")
+        do {
+            try await runWithBackground(snapshot: snap, outputURL: outputURL, progress: progress)
+            log.info("✓ exportWithBackground DONE")
+        } catch {
+            log.error("✗ exportWithBackground FAILED: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
     }
 
     func exportTransparent(
@@ -53,8 +70,19 @@ actor ExportService {
         to outputURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        let snap = try await MainActor.run { try ExportService.snapshot(from: project) }
-        try await runTransparent(snapshot: snap, outputURL: outputURL, progress: progress)
+        log.info("▶ exportTransparent START → output: \(outputURL.lastPathComponent, privacy: .public)")
+        let snap = try await MainActor.run {
+            log.debug("Building snapshot on MainActor")
+            return try ExportService.snapshot(from: project)
+        }
+        log.info("Snapshot built — render: \(Int(snap.renderSize.width))×\(Int(snap.renderSize.height)), clips: \(snap.clips.count), animations: \(snap.animations.count), transparent mode")
+        do {
+            try await runTransparent(snapshot: snap, outputURL: outputURL, progress: progress)
+            log.info("✓ exportTransparent DONE")
+        } catch {
+            log.error("✗ exportTransparent FAILED: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
     }
 
     // MARK: - Animation shifting
@@ -92,29 +120,57 @@ actor ExportService {
 
     @MainActor
     static func snapshot(from project: Project) throws -> Snapshot {
-        guard let url = project.videoURL else { throw ExportError.noSourceVideo }
+        guard let url = project.videoURL else {
+            log.error("Snapshot failed: no source video URL")
+            throw ExportError.noSourceVideo
+        }
+        log.debug("Source video: \(url.lastPathComponent, privacy: .public)")
+
         let overlay: CGImage?
         if project.deviceFrame.kind == .none {
             overlay = nil
+            log.debug("Device frame: none")
         } else {
             guard let img = FrameOverlayProvider.cgImage(for: project.deviceFrame) else {
+                log.error("Snapshot failed: missing frame overlay for \(project.deviceFrame.imageName, privacy: .public)")
                 throw ExportError.missingFrameOverlay
             }
             overlay = img
+            log.debug("Frame overlay loaded: \(project.deviceFrame.imageName, privacy: .public) size=\(img.width)×\(img.height)")
         }
+
         var backgroundCG: CGImage?
         if case .image(let imageURL) = project.background {
+            log.debug("Loading background image: \(imageURL.lastPathComponent, privacy: .public)")
             _ = imageURL.startAccessingSecurityScopedResource()
             defer { imageURL.stopAccessingSecurityScopedResource() }
             if let ns = NSImage(contentsOf: imageURL) {
                 var r = NSRect(origin: .zero, size: ns.size)
                 backgroundCG = ns.cgImage(forProposedRect: &r, context: nil, hints: nil)
+                if let cg = backgroundCG {
+                    log.debug("Background image loaded: \(cg.width)×\(cg.height)")
+                } else {
+                    log.error("Background image loaded but cgImage nil for \(imageURL.lastPathComponent, privacy: .public)")
+                }
+            } else {
+                log.error("NSImage(contentsOf:) returned nil for \(imageURL.lastPathComponent, privacy: .public)")
             }
         }
         var blurPosterCG: CGImage?
         if case .videoBlur = project.background {
             blurPosterCG = BlurPosterCache.shared.cachedCGImage(for: url)
+            log.debug("Blur poster cached: \(blurPosterCG != nil ? "yes (\(blurPosterCG!.width)×\(blurPosterCG!.height))" : "no", privacy: .public)")
         }
+
+        var bgVideoURL: URL?
+        if case .video(let videoURL) = project.background {
+            log.debug("Background video: \(videoURL.lastPathComponent, privacy: .public)")
+            _ = videoURL.startAccessingSecurityScopedResource()
+            bgVideoURL = videoURL
+        }
+
+        let renderSize = project.canvasAspect.renderSize(forShortSide: project.exportRenderSize.shortSide)
+        log.debug("Render size: \(Int(renderSize.width))×\(Int(renderSize.height)), quality: \(String(describing: project.exportQuality), privacy: .public)")
 
         return Snapshot(
             sourceVideoURL: url,
@@ -124,9 +180,10 @@ actor ExportService {
             background: project.background,
             blurPosterCG: blurPosterCG,
             backgroundImageCG: backgroundCG,
+            backgroundVideoURL: bgVideoURL,
             frameOverlayCG: overlay,
             animations: project.animations,
-            renderSize: project.canvasAspect.renderSize(forShortSide: project.exportRenderSize.shortSide),
+            renderSize: renderSize,
             bareCornerRadius: project.bareCornerRadius,
             bareBezelWidth: project.bareBezelWidth,
             bareBezelColor: (Color(hex: project.bareBezelHex) ?? .black).ciColor,

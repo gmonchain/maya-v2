@@ -19,20 +19,24 @@ enum ProjectService {
     static func save(project: Project, to packageURL: URL) throws {
         let fm = FileManager.default
 
-        // Create the package directory
-        if fm.fileExists(atPath: packageURL.path) {
-            try fm.removeItem(at: packageURL)
+        // Save to a temporary directory first, then atomically replace the original.
+        // This prevents data loss: if the source video/audio/background URLs point
+        // inside the existing package, deleting it first would lose those files.
+        let tmpURL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: tmpURL, withIntermediateDirectories: true)
+        defer {
+            // Clean up the temp directory if anything goes wrong and it wasn't moved
+            try? fm.removeItem(at: tmpURL)
         }
-        try fm.createDirectory(at: packageURL, withIntermediateDirectories: true)
 
-        // Create media subfolder
-        let mediaDir = packageURL.appendingPathComponent(mediaFolderName, isDirectory: true)
+        // Create media subfolder in temp
+        let mediaDir = tmpURL.appendingPathComponent(mediaFolderName, isDirectory: true)
         try fm.createDirectory(at: mediaDir, withIntermediateDirectories: true)
 
         // Build project file data (adjust background image and audio URLs to package-relative paths)
         var projectFile = project.toProjectFile()
 
-        // Copy video file into media/
+        // Copy video file into temp media/
         if let videoURL = project.videoURL {
             let videoName = videoURL.lastPathComponent
             let dest = mediaDir.appendingPathComponent(videoName)
@@ -40,7 +44,7 @@ enum ProjectService {
             projectFile.videoFileName = videoName
         }
 
-        // Copy audio files into media/
+        // Copy audio files into temp media/
         var updatedAudioClips: [AudioClipData] = []
         for audioClip in project.audioClips {
             let audioName = audioClip.sourceURL.lastPathComponent
@@ -64,17 +68,31 @@ enum ProjectService {
             projectFile.background = .image(fileName: imageName)
         }
 
-        // Serialize project.json
+        // Handle background video
+        if case .video(let videoURL) = project.background {
+            let videoName = videoURL.lastPathComponent
+            let dest = mediaDir.appendingPathComponent(videoName)
+            try copyOrLink(from: videoURL, to: dest)
+            projectFile.background = .video(fileName: videoName)
+        }
+
+        // Serialize project.json into temp
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let jsonData = try encoder.encode(projectFile)
-        let jsonURL = packageURL.appendingPathComponent(jsonFileName)
+        let jsonURL = tmpURL.appendingPathComponent(jsonFileName)
         try jsonData.write(to: jsonURL, options: .atomic)
+
+        // Atomically replace: remove old package, move temp in its place
+        if fm.fileExists(atPath: packageURL.path) {
+            try fm.removeItem(at: packageURL)
+        }
+        try fm.moveItem(at: tmpURL, to: packageURL)
     }
 
     // MARK: - Load
 
-    static func load(from packageURL: URL) throws -> (projectFile: MayaProjectFile, videoURL: URL, audioURLs: [String: URL], imageURLs: [String: URL]) {
+    static func load(from packageURL: URL) throws -> (projectFile: MayaProjectFile, videoURL: URL, audioURLs: [String: URL], imageURLs: [String: URL], backgroundVideoURLs: [String: URL]) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: packageURL.path) else {
             throw ProjectError.fileNotFound
@@ -118,11 +136,20 @@ enum ProjectService {
             }
         }
 
+        // Build background video URL map
+        var backgroundVideoURLs: [String: URL] = [:]
+        if case .video(let fileName) = projectFile.background {
+            let candidate = mediaDir.appendingPathComponent(fileName)
+            if fm.fileExists(atPath: candidate.path) {
+                backgroundVideoURLs[fileName] = candidate
+            }
+        }
+
         guard let video = videoURL else {
             throw ProjectError.videoNotFound
         }
 
-        return (projectFile, video, audioURLs, imageURLs)
+        return (projectFile, video, audioURLs, imageURLs, backgroundVideoURLs)
     }
 
     // MARK: - Helpers

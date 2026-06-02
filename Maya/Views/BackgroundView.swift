@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import SwiftUI
 
@@ -33,6 +34,8 @@ struct BackgroundView: View {
                 )
             case .image(let url):
                 BackgroundImageView(url: url)
+            case .video(let url):
+                BackgroundVideoPlayerView(url: url)
             case .videoBlur:
                 if let poster = blurPoster {
                     Image(nsImage: poster)
@@ -93,5 +96,80 @@ private struct BackgroundImageView: View {
             let loaded = NSImage(contentsOf: url)
             await MainActor.run { self.image = loaded }
         }
+    }
+}
+
+/// Loops a background video silently via AVPlayerLayer, aspect-filling its container.
+private struct BackgroundVideoPlayerView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> LoopingBGPlayerView {
+        let view = LoopingBGPlayerView()
+        view.load(url: url)
+        return view
+    }
+
+    func updateNSView(_ nsView: LoopingBGPlayerView, context: Context) {
+        if nsView.currentURL != url {
+            nsView.load(url: url)
+        }
+    }
+
+    static func dismantleNSView(_ nsView: LoopingBGPlayerView, coordinator: ()) {
+        nsView.stop()
+    }
+}
+
+private final class LoopingBGPlayerView: NSView {
+    private(set) var currentURL: URL?
+    private var player: AVQueuePlayer?
+    private var looper: AVPlayerLooper?
+    private var playerLayer: AVPlayerLayer?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CALayer()
+        layer?.backgroundColor = NSColor.black.cgColor
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layout() {
+        super.layout()
+        playerLayer?.frame = bounds
+    }
+
+    func load(url: URL) {
+        stop()
+        guard url.startAccessingSecurityScopedResource() else { return }
+        let item = AVPlayerItem(url: url)
+        let queue = AVQueuePlayer()
+        queue.isMuted = true
+        let looper = AVPlayerLooper(player: queue, templateItem: item)
+
+        let layer = AVPlayerLayer(player: queue)
+        layer.videoGravity = .resizeAspectFill
+        layer.frame = bounds
+        self.layer?.sublayers?.forEach { $0.removeFromSuperlayer() }
+        self.layer?.addSublayer(layer)
+
+        self.currentURL = url
+        self.player = queue
+        self.looper = looper
+        self.playerLayer = layer
+        queue.play()
+    }
+
+    func stop() {
+        player?.pause()
+        playerLayer?.removeFromSuperlayer()
+        playerLayer = nil
+        looper = nil
+        player = nil
+        if let url = currentURL {
+            url.stopAccessingSecurityScopedResource()
+        }
+        currentURL = nil
     }
 }

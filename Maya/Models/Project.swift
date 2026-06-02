@@ -158,6 +158,13 @@ final class Project {
 
     var trackCount: Int = 1
 
+    // MARK: - Timeline zoom & pan
+
+    /// Zoom level for the timeline (1.0 = default fit-to-viewport). Clamped 0.1…20.0.
+    var timelineZoom: CGFloat = 1.0
+    /// Horizontal scroll offset in pixels when zoomed in beyond viewport width.
+    var timelineScrollOffset: CGFloat = 0
+
     func addTrack() {
         pushUndo()
         trackCount += 1
@@ -266,10 +273,14 @@ final class Project {
         audioPlayerCache.removeValue(forKey: id)
     }
 
-    /// Sync audio players to match the main player's current state.
-    func syncAudioPlayers() {
+    /// Full sync: seeks audio players to the correct source position and starts/stops
+    /// them based on current playhead + playback state. Used on seek, play/pause toggle,
+    /// and mute changes — any action that jumps the playhead or changes state.
+    /// - Parameter forcePlaying: When true, audio players are started even if the main
+    ///   player hasn't fully transitioned to `.playing` yet.
+    func syncAudioPlayers(forcePlaying: Bool = false) {
         guard let player else { return }
-        let isPlaying = player.timeControlStatus == .playing
+        let isPlaying = forcePlaying || player.timeControlStatus == .playing
         for clip in audioClips {
             guard let audioPlayer = audioPlayerCache[clip.id] else { continue }
             let sourcePos = clip.timelineToSource(currentSeconds)
@@ -280,6 +291,44 @@ final class Project {
                 audioPlayer.play()
             } else {
                 audioPlayer.pause()
+            }
+        }
+    }
+
+    /// Lightweight per-frame audio tick — only starts/stops audio players on range
+    /// transitions. Does NOT seek while playing (avoids decoder churn and audible
+    /// glitches). Only re-seeks if drift exceeds 1.0 second.
+    private func tickAudioPlayers() {
+        guard let player, player.timeControlStatus == .playing else {
+            // If main player isn't playing, pause all audio players
+            for (_, audioPlayer) in audioPlayerCache {
+                if audioPlayer.timeControlStatus == .playing { audioPlayer.pause() }
+            }
+            return
+        }
+        for clip in audioClips {
+            guard let audioPlayer = audioPlayerCache[clip.id] else { continue }
+            let inRange = currentSeconds >= clip.timelineStart && currentSeconds <= clip.timelineEnd
+            if inRange && !clip.isMuted {
+                if audioPlayer.timeControlStatus != .playing {
+                    // Just entered range — seek to current position and start
+                    let sourcePos = clip.timelineToSource(currentSeconds)
+                    audioPlayer.seek(to: CMTime(seconds: sourcePos, preferredTimescale: 600),
+                                     toleranceBefore: CMTime(seconds: 0.05, preferredTimescale: 600),
+                                     toleranceAfter: CMTime(seconds: 0.05, preferredTimescale: 600))
+                    audioPlayer.play()
+                } else {
+                    // Already playing — only re-seek if drift is large (>1s)
+                    let expectedPos = clip.timelineToSource(currentSeconds)
+                    let actualPos = audioPlayer.currentTime().seconds
+                    if abs(actualPos - expectedPos) > 1.0 {
+                        audioPlayer.seek(to: CMTime(seconds: expectedPos, preferredTimescale: 600),
+                                         toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600),
+                                         toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600))
+                    }
+                }
+            } else {
+                if audioPlayer.timeControlStatus == .playing { audioPlayer.pause() }
             }
         }
     }
@@ -546,27 +595,13 @@ final class Project {
             } else {
                 self.currentSeconds = sourceTime
             }
-            // Sync audio players to the current playhead
-            for clip in self.audioClips {
-                guard let audioPlayer = self.audioPlayerCache[clip.id] else { continue }
-                let inRange = self.currentSeconds >= clip.timelineStart && self.currentSeconds <= clip.timelineEnd
-                if inRange && self.player?.timeControlStatus == .playing && !clip.isMuted {
-                    let sourcePos = clip.timelineToSource(self.currentSeconds)
-                    let currentAudioPos = audioPlayer.currentTime().seconds
-                    if audioPlayer.timeControlStatus != .playing {
-                        audioPlayer.seek(to: CMTime(seconds: sourcePos, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-                        audioPlayer.play()
-                    } else if abs(currentAudioPos - sourcePos) > 0.3 {
-                        audioPlayer.seek(to: CMTime(seconds: sourcePos, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
-                    }
-                } else if audioPlayer.timeControlStatus == .playing {
-                    audioPlayer.pause()
-                }
-            }
+            // Lightweight audio sync — only start/stop audio players on range transitions.
+            // Avoid seeking every frame; let AVPlayer play audio at its own pace once started.
+            self.tickAudioPlayers()
         }
 
         newPlayer.play()
-        syncAudioPlayers()
+        syncAudioPlayers(forcePlaying: true)
     }
 
     func togglePlayback() {
@@ -585,7 +620,9 @@ final class Project {
                 lastAppliedSpeedClipID = activeClip.id
                 player.rate = Float(activeClip.speed)
             }
-            syncAudioPlayers()
+            // forcePlaying: true — timeControlStatus won't be .playing yet
+            // right after setting rate, but audio should start immediately.
+            syncAudioPlayers(forcePlaying: true)
         }
     }
 

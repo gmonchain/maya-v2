@@ -107,9 +107,11 @@ extension Project {
     }
 
     /// Length of the project timeline shown in the editor.
+    /// Accounts for video clips, audio clips, and the raw video duration.
     var timelineDuration: Double {
         let maxClipEnd = clips.map(\.timelineEnd).max() ?? 0
-        return max(durationSeconds, maxClipEnd)
+        let maxAudioEnd = audioClips.map(\.timelineEnd).max() ?? 0
+        return max(durationSeconds, maxClipEnd, maxAudioEnd)
     }
 
     /// True when the user has trimmed, shifted, or split the video.

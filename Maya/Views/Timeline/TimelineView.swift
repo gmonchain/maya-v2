@@ -78,13 +78,46 @@ struct TimelineView: View {
 
     private var tracks: some View {
         GeometryReader { proxy in
-            let width = proxy.size.width
+            let viewportWidth = proxy.size.width
+            let zoom = max(project.timelineZoom, 0.1)
+            let contentWidth = max(viewportWidth, viewportWidth * zoom)
             let duration = project.timelineDuration
             let totalHeight = rulerHeight + animationsHeight + videoHeight + audioSectionHeight + 8
 
             ZStack(alignment: .topLeading) {
+                // Scroll interceptor — behind content, receives scrollWheel events
+                // that SwiftUI views don't consume by default.
+                TimelineScrollInterceptor { zoomDelta, panDelta, anchorX in
+                    let effectiveZoom = max(project.timelineZoom, 0.1)
+                    let effectiveContentWidth = max(viewportWidth, viewportWidth * effectiveZoom)
+
+                    // --- Pan (horizontal scroll) ---
+                    if abs(panDelta) > 0 {
+                        let rawOffset = project.timelineScrollOffset - panDelta
+                        project.timelineScrollOffset = max(0, min(rawOffset, max(0, effectiveContentWidth - viewportWidth)))
+                    }
+
+                    // --- Zoom (vertical scroll) ---
+                    if abs(zoomDelta) > 0.000001 {
+                        let oldZoom = effectiveZoom
+                        let newZoom = max(0.1, min(20.0, oldZoom * (1.0 + zoomDelta)))
+                        let newContentWidth = max(viewportWidth, viewportWidth * newZoom)
+
+                        // Zoom-anchor math: keep the point under the cursor stationary.
+                        // contentPoint = scrollOffset + anchorX
+                        // After zoom: newOffset = contentPoint * (newZoom / oldZoom) - anchorX
+                        let contentPoint = project.timelineScrollOffset + anchorX
+                        let newOffset = contentPoint * (newZoom / oldZoom) - anchorX
+                        let clampedOffset = max(0, min(newOffset, max(0, newContentWidth - viewportWidth)))
+
+                        project.timelineZoom = newZoom
+                        project.timelineScrollOffset = clampedOffset
+                    }
+                }
+                .frame(width: viewportWidth, height: totalHeight)
+
                 VStack(spacing: 4) {
-                    TimeRuler(duration: duration, width: width, height: rulerHeight)
+                    TimeRuler(duration: duration, width: contentWidth, height: rulerHeight)
                     AnimationsTrack(
                         project: project,
                         height: animationsHeight,
@@ -102,17 +135,20 @@ struct TimelineView: View {
                         )
                     }
                 }
+                .frame(width: contentWidth, alignment: .leading)
+                .offset(x: -project.timelineScrollOffset)
                 .contentShape(Rectangle())
                 .onTapGesture(coordinateSpace: .local) { point in
                     if duration > 0 {
-                        let raw = Double(point.x / width) * duration
+                        let contentX = point.x + project.timelineScrollOffset
+                        let raw = Double(contentX / contentWidth) * duration
                         project.seek(to: raw)
                     }
                 }
 
-                // Draggable playhead with time tooltip. Position is in timeline coords.
+                // Draggable playhead with time tooltip. Position is in viewport coords.
                 if duration > 0 {
-                    let x = CGFloat(project.currentSeconds / duration) * width
+                    let x = CGFloat(project.currentSeconds / duration) * contentWidth - project.timelineScrollOffset
                     Playhead(
                         height: totalHeight,
                         timeText: isScrubbing ? formatTimestamp(project.currentSeconds) : nil
@@ -123,13 +159,16 @@ struct TimelineView: View {
                             .onChanged { v in
                                 guard duration > 0 else { return }
                                 isScrubbing = true
-                                let t = max(0, min(Double(v.location.x / width) * duration, duration))
+                                let contentX = v.location.x + project.timelineScrollOffset
+                                let t = max(0, min(Double(contentX / contentWidth) * duration, duration))
                                 project.seek(to: t)
                             }
                             .onEnded { _ in isScrubbing = false }
                     )
                 }
             }
+            .frame(width: viewportWidth)
+            .clipped()
             .coordinateSpace(name: "tracksSpace")
         }
         .frame(height: rulerHeight + animationsHeight + videoHeight + audioSectionHeight + 8)

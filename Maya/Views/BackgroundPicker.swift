@@ -9,6 +9,7 @@ struct BackgroundPicker: View {
     @State private var solidHex: String = BackgroundOption.defaultSolids[0]
     @State private var gradientSpec: GradientSpec = GradientSpec.presets[0]
     @State private var imageURL: URL?
+    @State private var videoURL: URL?
 
     // Custom solid editor
     @State private var customSolidColor: Color = Color(hex: "#6466FA") ?? .indigo
@@ -19,7 +20,7 @@ struct BackgroundPicker: View {
     @State private var customGradientAngle: Double = 135
 
     enum Kind: String, CaseIterable, Identifiable {
-        case none, solid, gradient, image, videoBlur
+        case none, solid, gradient, image, video, videoBlur
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -27,6 +28,7 @@ struct BackgroundPicker: View {
             case .solid: "Solid"
             case .gradient: "Gradient"
             case .image: "Image"
+            case .video: "Video"
             case .videoBlur: "Blur"
             }
         }
@@ -49,7 +51,10 @@ struct BackgroundPicker: View {
                 syncKindFromProject()
                 seedCustomEditorsFromProject()
             }
-            .onChange(of: project.background) { _, _ in syncKindFromProject() }
+            .onChange(of: project.background) { _, _ in
+                syncKindFromProject()
+                seedCustomEditorsFromProject()
+            }
 
             Group {
                 switch selectedKind {
@@ -73,6 +78,8 @@ struct BackgroundPicker: View {
                     )
                 case .image:
                     imagePicker
+                case .video:
+                    videoPicker
                 case .videoBlur:
                     Text("Blurred frame of your video, Keynote-style.")
                         .font(.callout)
@@ -80,7 +87,7 @@ struct BackgroundPicker: View {
                 }
             }
 
-            if selectedKind == .solid || selectedKind == .gradient || selectedKind == .image {
+            if selectedKind == .solid || selectedKind == .gradient || selectedKind == .image || selectedKind == .video {
                 blurSlider
             }
         }
@@ -125,6 +132,22 @@ struct BackgroundPicker: View {
         }
     }
 
+    private var videoPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Video will fill the background and loop during playback & export.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let url = videoURL {
+                Text(url.lastPathComponent)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.secondary)
+            }
+            Button("Choose video…") { chooseVideo() }
+        }
+    }
+
     private var blurSlider: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -160,6 +183,7 @@ struct BackgroundPicker: View {
         case .solid: selectedKind = .solid
         case .gradient: selectedKind = .gradient
         case .image: selectedKind = .image
+        case .video: selectedKind = .video
         case .videoBlur: selectedKind = .videoBlur
         }
     }
@@ -176,6 +200,12 @@ struct BackgroundPicker: View {
             customGradientEnd = spec.endColor
             customGradientAngle = spec.angleDegrees
             gradientSpec = spec
+        }
+        if case .video(let url) = project.background {
+            videoURL = url
+        }
+        if case .image(let url) = project.background {
+            imageURL = url
         }
     }
 
@@ -194,6 +224,12 @@ struct BackgroundPicker: View {
             } else {
                 project.background = .solid(hex: solidHex)
             }
+        case .video:
+            if let url = videoURL {
+                project.background = .video(url)
+            } else {
+                project.background = .solid(hex: solidHex)
+            }
         case .videoBlur:
             project.background = .videoBlur
             project.backgroundBlurRadius = 0
@@ -208,6 +244,17 @@ struct BackgroundPicker: View {
         if panel.runModal() == .OK, let url = panel.url {
             imageURL = url
             project.background = .image(url)
+        }
+    }
+
+    private func chooseVideo() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            videoURL = url
+            project.background = .video(url)
         }
     }
 }

@@ -48,13 +48,9 @@ struct RecordingSection: View {
                     Button("Replace…") { openVideoPicker() }
                 }
             } else {
-                Button {
-                    openVideoPicker()
-                } label: {
-                    Label("Open screen recording…", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .controlSize(.large)
+                Label("No recording loaded", systemImage: "film")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
     }

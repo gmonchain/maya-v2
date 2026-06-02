@@ -406,32 +406,28 @@ private struct HoverLabelModifier: ViewModifier {
     @State private var isHovering = false
     
     func body(content: Content) -> some View {
-        ZStack(alignment: .top) {
-            content
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isHovering = hovering
-                    }
-                }
-            
-            if isHovering {
-                Text(text)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.black.opacity(0.9))
-                            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-                    )
-                    .fixedSize()
-                    .offset(y: -28)
-                    .allowsHitTesting(false)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+        content
+            .onHover { hovering in
+                isHovering = hovering
             }
-        }
-        .fixedSize()
+            .overlay(alignment: .top) {
+                if isHovering {
+                    Text(text)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.black.opacity(0.9))
+                                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                        )
+                        .fixedSize()
+                        .offset(y: -28)
+                        .allowsHitTesting(false)
+                        .animation(.easeInOut(duration: 0.15), value: isHovering)
+                }
+            }
     }
 }
 

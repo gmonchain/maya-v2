@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 /// File format for saving/loading Maya projects as `.mayaproj` JSON files.
@@ -41,6 +40,10 @@ struct MayaProjectFile: Codable, Sendable {
     var animations: [AnimationData]
     var selectedAnimationID: String?
 
+    // Transitions
+    var transitions: [Transition]
+    var selectedTransitionID: String?
+
     // Audio
     var audioClips: [AudioClipData]
     var activeAudioClipID: String?
@@ -79,6 +82,8 @@ struct MayaProjectFile: Codable, Sendable {
         trackCount: Int,
         animations: [AnimationData],
         selectedAnimationID: String? = nil,
+        transitions: [Transition] = [],
+        selectedTransitionID: String? = nil,
         audioClips: [AudioClipData],
         activeAudioClipID: String? = nil,
         exportQuality: String,
@@ -107,6 +112,8 @@ struct MayaProjectFile: Codable, Sendable {
         self.trackCount = trackCount
         self.animations = animations
         self.selectedAnimationID = selectedAnimationID
+        self.transitions = transitions
+        self.selectedTransitionID = selectedTransitionID
         self.audioClips = audioClips
         self.activeAudioClipID = activeAudioClipID
         self.exportQuality = exportQuality
@@ -140,6 +147,8 @@ struct MayaProjectFile: Codable, Sendable {
         trackCount = try container.decode(Int.self, forKey: .trackCount)
         animations = try container.decode([AnimationData].self, forKey: .animations)
         selectedAnimationID = try container.decodeIfPresent(String.self, forKey: .selectedAnimationID)
+        transitions = try container.decodeIfPresent([Transition].self, forKey: .transitions) ?? []
+        selectedTransitionID = try container.decodeIfPresent(String.self, forKey: .selectedTransitionID)
         audioClips = try container.decodeIfPresent([AudioClipData].self, forKey: .audioClips) ?? []
         activeAudioClipID = try container.decodeIfPresent(String.self, forKey: .activeAudioClipID)
         exportQuality = try container.decode(String.self, forKey: .exportQuality)
@@ -156,6 +165,7 @@ enum BackgroundData: Codable, Sendable {
     case solid(hex: String)
     case gradient(startHex: String, endHex: String, angleDegrees: Double)
     case image(fileName: String)
+    case video(fileName: String)
     case videoBlur
 
     init(from background: BackgroundOption) {
@@ -168,6 +178,8 @@ enum BackgroundData: Codable, Sendable {
             self = .gradient(startHex: spec.startHex, endHex: spec.endHex, angleDegrees: spec.angleDegrees)
         case .image(let url):
             self = .image(fileName: url.lastPathComponent)
+        case .video(let url):
+            self = .video(fileName: url.lastPathComponent)
         case .videoBlur:
             self = .videoBlur
         }
@@ -183,6 +195,10 @@ enum BackgroundData: Codable, Sendable {
             return .gradient(GradientSpec(startHex: startHex, endHex: endHex, angleDegrees: angle))
         case .image:
             // Image background requires the file to be copied into sandbox during load.
+            // This is handled by ProjectService.
+            return .solid(hex: "#000000") // Fallback, will be overridden
+        case .video:
+            // Video background requires the file to be copied into sandbox during load.
             // This is handled by ProjectService.
             return .solid(hex: "#000000") // Fallback, will be overridden
         case .videoBlur:
@@ -355,7 +371,8 @@ extension Project {
         _ file: MayaProjectFile,
         videoURL: URL,
         audioURLs: [String: URL],
-        imageURLs: [String: URL]
+        imageURLs: [String: URL],
+        backgroundVideoURLs: [String: URL] = [:]
     ) async {
         // Load the video first
         await loadVideo(url: videoURL)
@@ -391,6 +408,10 @@ extension Project {
             if let url = imageURLs[fileName] {
                 background = .image(url)
             }
+        case .video(let fileName):
+            if let url = backgroundVideoURLs[fileName] {
+                background = .video(url)
+            }
         case .videoBlur:
             background = .videoBlur
         }
@@ -418,6 +439,16 @@ extension Project {
             selectedAnimationID = uuid
         } else {
             selectedAnimationID = nil
+        }
+
+        // Restore transitions
+        transitions = file.transitions
+        if let selID = file.selectedTransitionID,
+           let uuid = UUID(uuidString: selID),
+           transitions.contains(where: { $0.id == uuid }) {
+            selectedTransitionID = uuid
+        } else {
+            selectedTransitionID = nil
         }
 
         // Restore audio clips
@@ -482,6 +513,8 @@ extension Project {
             trackCount: trackCount,
             animations: animations.map { AnimationData(from: $0) },
             selectedAnimationID: selectedAnimationID?.uuidString,
+            transitions: transitions,
+            selectedTransitionID: selectedTransitionID?.uuidString,
             audioClips: audioClips.map { AudioClipData(from: $0) },
             activeAudioClipID: activeAudioClipID?.uuidString,
             exportQuality: exportQuality.rawValue,

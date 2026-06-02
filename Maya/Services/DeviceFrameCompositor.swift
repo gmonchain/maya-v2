@@ -3,6 +3,9 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import Foundation
 import Metal
+import OSLog
+
+private let log = Logger(subsystem: "com.gmonchain.maya", category: "Compositor")
 
 final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruction, @unchecked Sendable {
     nonisolated(unsafe) var renderTransparent: Bool = false
@@ -11,6 +14,9 @@ final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruct
     nonisolated(unsafe) var offsetFraction: CGSize = .zero
     nonisolated(unsafe) var sourceTrackIDs: [CMPersistentTrackID] = []
     nonisolated(unsafe) var backgroundImage: CIImage?
+    /// When set to a valid track ID, the compositor pulls the background frame from this
+    /// video track at every frame rather than using `backgroundImage` (static image).
+    nonisolated(unsafe) var backgroundVideoTrackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
     nonisolated(unsafe) var frameOverlay: CIImage?
     nonisolated(unsafe) var naturalHeightFraction: CGFloat = 0.9
     nonisolated(unsafe) var animations: [ZoomSegment] = []
@@ -29,7 +35,11 @@ final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruct
     /// won't feed any frames into `request.sourceFrame(byTrackID:)` and the export fails
     /// with "source frame is missing". Critical for any custom AVVideoCompositing impl.
     nonisolated override var requiredSourceTrackIDs: [NSValue] {
-        sourceTrackIDs.map { NSNumber(value: $0) }
+        var ids = sourceTrackIDs.map { NSNumber(value: $0) }
+        if backgroundVideoTrackID != kCMPersistentTrackID_Invalid {
+            ids.append(NSNumber(value: backgroundVideoTrackID))
+        }
+        return ids
     }
 
     nonisolated override var passthroughTrackID: CMPersistentTrackID {
@@ -79,11 +89,15 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
         }
     }
 
-    func cancelAllPendingVideoCompositionRequests() {}
+    func cancelAllPendingVideoCompositionRequests() {
+        log.warning("cancelAllPendingVideoCompositionRequests called — export may be cancelled")
+    }
 
     private func process(_ request: AVAsynchronousVideoCompositionRequest) {
+        let frameTime = request.compositionTime.seconds
         guard let instruction = request.videoCompositionInstruction as? DeviceFrameCompositionInstruction,
               let context = renderContext else {
+            log.error("Compositor process failed at t=\(frameTime, privacy: .public): missing instruction or context (instruction: \(type(of: request.videoCompositionInstruction)), context: \(self.renderContext != nil ? "present" : "nil", privacy: .public))")
             request.finish(with: CompositorError.missingContext)
             return
         }
@@ -96,6 +110,7 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
             }
         }
         guard let sourceBuffer else {
+            log.error("Compositor at t=\(frameTime, privacy: .public): missing source frame — checked \(instruction.sourceTrackIDs.count, privacy: .public) trackIDs: \(instruction.sourceTrackIDs, privacy: .public)")
             request.finish(with: CompositorError.missingSource)
             return
         }
@@ -178,6 +193,9 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
         if instruction.renderTransparent {
             background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0))
                 .cropped(to: renderRect)
+        } else if instruction.backgroundVideoTrackID != kCMPersistentTrackID_Invalid,
+                  let bgFrame = request.sourceFrame(byTrackID: instruction.backgroundVideoTrackID) {
+            background = scaleToFill(CIImage(cvPixelBuffer: bgFrame), target: renderRect)
         } else if let bg = instruction.backgroundImage {
             background = scaleToFill(bg, target: renderRect)
         } else {
@@ -319,6 +337,7 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
                               context: AVVideoCompositionRenderContext,
                               renderRect: CGRect) {
         guard let output = context.newPixelBuffer() else {
+            log.error("Compositor at t=\(request.compositionTime.seconds, privacy: .public): cannot allocate output pixel buffer (\(Int(renderRect.width))×\(Int(renderRect.height)))")
             request.finish(with: CompositorError.cannotAllocateBuffer)
             return
         }

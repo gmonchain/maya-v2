@@ -12,6 +12,8 @@ struct ProjectSnapshot: Equatable, Sendable {
     var trackCount: Int
     var animations: [ZoomSegment]
     var selectedAnimationID: ZoomSegment.ID?
+    var transitions: [Transition]
+    var selectedTransitionID: Transition.ID?
     var scale: CGFloat
     var offset: CGSize
     var background: BackgroundOption
@@ -60,6 +62,8 @@ extension Project {
             trackCount: trackCount,
             animations: animations,
             selectedAnimationID: selectedAnimationID,
+            transitions: transitions,
+            selectedTransitionID: selectedTransitionID,
             scale: scale,
             offset: offset,
             background: background,
@@ -78,6 +82,8 @@ extension Project {
         trackCount = snapshot.trackCount
         animations = snapshot.animations
         selectedAnimationID = snapshot.selectedAnimationID
+        transitions = snapshot.transitions
+        selectedTransitionID = snapshot.selectedTransitionID
         scale = snapshot.scale
         offset = snapshot.offset
         background = snapshot.background

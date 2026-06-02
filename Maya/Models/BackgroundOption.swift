@@ -38,6 +38,7 @@ enum BackgroundOption: Hashable, Sendable {
     case solid(hex: String)
     case gradient(GradientSpec)
     case image(URL)
+    case video(URL)
     case videoBlur
 
     var isTransparent: Bool {

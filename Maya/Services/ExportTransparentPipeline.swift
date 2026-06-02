@@ -2,7 +2,10 @@ import AVFoundation
 import CoreImage
 import CoreMedia
 import Foundation
+import OSLog
 import VideoToolbox
+
+private let log = Logger(subsystem: "com.gmonchain.maya", category: "ExportTransparent")
 
 // MARK: - Transparent export pipeline
 
@@ -12,9 +15,18 @@ extension ExportService {
         let outputAccess = outputURL.startAccessingSecurityScopedResource()
         defer { if outputAccess { outputURL.stopAccessingSecurityScopedResource() } }
 
+        log.info("Starting transparent export to \(outputURL.path, privacy: .public)")
+        log.debug("outputAccess granted: \(outputAccess, privacy: .public)")
+
         let asset = AVURLAsset(url: snapshot.sourceVideoURL)
+        log.debug("Loading AVAsset from \(snapshot.sourceVideoURL.lastPathComponent, privacy: .public)")
         let videoTracks = try await asset.loadTracks(withMediaType: .video)
-        guard let sourceVideoTrack = videoTracks.first else { throw ExportError.noVideoTrack }
+        guard let sourceVideoTrack = videoTracks.first else {
+            log.error("No video track found in source asset")
+            throw ExportError.noVideoTrack
+        }
+        let sourceDuration = CMTimeGetSeconds(try await sourceVideoTrack.load(.timeRange).duration)
+        log.debug("Source video track loaded, duration: \(sourceDuration, privacy: .public)s")
 
         let rawFrameDuration = try await sourceVideoTrack.load(.minFrameDuration)
         let frameDuration: CMTime = (rawFrameDuration == .invalid || rawFrameDuration.seconds <= 0)
@@ -75,22 +87,50 @@ extension ExportService {
         // Additional audio clips (music, voiceover, SFX)
         for audioClip in snapshot.audioClips where !audioClip.isMuted {
             let audioAsset = AVURLAsset(url: audioClip.sourceURL)
-            guard let sourceAudioTrack = try? await audioAsset.loadTracks(withMediaType: .audio).first else { continue }
+            guard let sourceAudioTrack = try? await audioAsset.loadTracks(withMediaType: .audio).first else {
+                log.warning("Audio clip '\(audioClip.displayName, privacy: .public)': no audio track found in asset")
+                continue
+            }
             guard let compAudioTrack = composition.addMutableTrack(
                 withMediaType: .audio,
                 preferredTrackID: kCMPersistentTrackID_Invalid
-            ) else { continue }
-            let range = CMTimeRange(
-                start: CMTime(seconds: audioClip.trimStartTime, preferredTimescale: 600),
-                duration: CMTime(seconds: audioClip.clipDuration, preferredTimescale: 600)
+            ) else {
+                log.error("Could not add audio composition track for clip '\(audioClip.displayName, privacy: .public)'")
+                continue
+            }
+
+            let trackTimeRange = (try? await sourceAudioTrack.load(.timeRange)) ?? CMTimeRange(start: .zero, duration: .zero)
+            let trackEnd = CMTimeRangeGetEnd(trackTimeRange)
+            // Subtract 1 unit at the track's native timescale to account for
+            // Double→CMTime floating-point imprecision. Without this margin,
+            // `CMTime(seconds: trimEnd)` can land past the track boundary
+            // at the native timescale → -11841 InvalidSourceMedia.
+            let safeTrackEnd = CMTimeSubtract(trackEnd, CMTime(value: 1, timescale: trackEnd.timescale))
+
+            let desiredStart = CMTime(seconds: audioClip.trimStartTime, preferredTimescale: 600)
+            let desiredEnd   = CMTime(seconds: audioClip.trimEndTime,   preferredTimescale: 600)
+
+            let safeStart = CMTimeMaximum(.zero, CMTimeMinimum(desiredStart, safeTrackEnd))
+            let safeEnd   = CMTimeMinimum(desiredEnd, safeTrackEnd)
+            let safeDuration = CMTimeMaximum(
+                CMTime(value: 1, timescale: 600),
+                CMTimeSubtract(safeEnd, safeStart)
             )
+
+            let range = CMTimeRange(start: safeStart, duration: safeDuration)
             let insertAt = CMTime(seconds: audioClip.timelineStart, preferredTimescale: 600)
-            try? compAudioTrack.insertTimeRange(range, of: sourceAudioTrack, at: insertAt)
+            do {
+                try compAudioTrack.insertTimeRange(range, of: sourceAudioTrack, at: insertAt)
+            } catch {
+                log.error("Failed to insert audio clip '\(audioClip.displayName, privacy: .public)' (start=\(range.start.seconds, privacy: .public), dur=\(range.duration.seconds, privacy: .public), trackEnd=\(trackEnd.seconds, privacy: .public)): \(error.localizedDescription)")
+                continue
+            }
         }
 
-        let totalDuration = snapshot.clips.map(\.timelineEnd).max().map {
-            CMTime(seconds: $0, preferredTimescale: 600)
-        } ?? .zero
+        let videoMaxEnd = snapshot.clips.map(\.timelineEnd).max() ?? 0
+        let audioMaxEnd = snapshot.audioClips.map(\.timelineEnd).max() ?? 0
+        let totalDuration = CMTime(seconds: max(videoMaxEnd, audioMaxEnd), preferredTimescale: 600)
+        log.info("Composition built — totalDuration: \(totalDuration.seconds, privacy: .public)s, clips: \(snapshot.clips.count), audioClips: \(snapshot.audioClips.count)")
 
         let instruction = DeviceFrameCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: totalDuration)
@@ -129,9 +169,9 @@ extension ExportService {
         if reader.canAdd(videoOutput) { reader.add(videoOutput) }
 
         let compAudioTracks = try await composition.loadTracks(withMediaType: .audio)
-        var audioOutput: AVAssetReaderTrackOutput?
-        if let audioTrack = compAudioTracks.first {
-            let o = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: [
+        var audioOutput: AVAssetReaderAudioMixOutput?
+        if !compAudioTracks.isEmpty {
+            let o = AVAssetReaderAudioMixOutput(audioTracks: compAudioTracks, audioSettings: [
                 AVFormatIDKey: kAudioFormatLinearPCM,
                 AVLinearPCMBitDepthKey: 16,
                 AVLinearPCMIsBigEndianKey: false,
@@ -142,6 +182,7 @@ extension ExportService {
             if reader.canAdd(o) {
                 reader.add(o)
                 audioOutput = o
+                log.debug("Audio reader: \(compAudioTracks.count, privacy: .public) track(s) via AVAssetReaderAudioMixOutput")
             }
         }
 
@@ -192,9 +233,18 @@ extension ExportService {
             ]
         )
 
-        guard reader.startReading() else { throw ExportError.readerStartFailed(reader.error) }
-        guard writer.startWriting() else { throw ExportError.writerStartFailed(writer.error) }
+        guard reader.startReading() else {
+            let readerErr = reader.error
+            log.error("AVAssetReader failed to start: \(readerErr?.localizedDescription ?? "unknown", privacy: .public), status: \(reader.status.rawValue, privacy: .public)")
+            throw ExportError.readerStartFailed(readerErr)
+        }
+        guard writer.startWriting() else {
+            let writerErr = writer.error
+            log.error("AVAssetWriter failed to start: \(writerErr?.localizedDescription ?? "unknown", privacy: .public), status: \(writer.status.rawValue, privacy: .public)")
+            throw ExportError.writerStartFailed(writerErr)
+        }
         writer.startSession(atSourceTime: .zero)
+        log.debug("Reader & writer started, beginning frame pump...")
 
         let totalSeconds = totalDuration.seconds
 
@@ -216,10 +266,19 @@ extension ExportService {
             try await group.waitForAll()
         }
 
+        log.info("Video & audio pumping done, finishing writer...")
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
             writer.finishWriting { c.resume() }
         }
-        if writer.status == .failed { throw writer.error ?? ExportError.writerFinishFailed }
+        if writer.status == .failed {
+            let writerErr = writer.error
+            log.error("AVAssetWriter finishWriting failed — status: failed, error: \(writerErr?.localizedDescription ?? "unknown", privacy: .public), code: \(writerErr?._code ?? 0, privacy: .public)")
+            throw writerErr ?? ExportError.writerFinishFailed
+        }
+        if writer.status == .cancelled {
+            log.error("AVAssetWriter was cancelled")
+        }
+        log.info("Writer finished — status: \(writer.status.rawValue, privacy: .public)")
         progress(1.0)
     }
 
@@ -234,22 +293,29 @@ extension ExportService {
     ) async throws {
         let queue = DispatchQueue(label: "maya.export.video", qos: .userInitiated)
         let state = ContinuationGuard<Void>()
+        var frameCount = 0
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             state.continuation = continuation
             input.requestMediaDataWhenReady(on: queue) {
                 while input.isReadyForMoreMediaData {
                     guard let sample = output.copyNextSampleBuffer() else {
+                        log.debug("Video pump: no more samples after \(frameCount, privacy: .public) frames")
                         input.markAsFinished()
                         state.finish(.success(()))
                         return
                     }
                     let pts = CMSampleBufferGetPresentationTimeStamp(sample)
-                    guard let buffer = CMSampleBufferGetImageBuffer(sample) else { continue }
+                    guard let buffer = CMSampleBufferGetImageBuffer(sample) else {
+                        log.warning("Video pump: sample at \(pts.seconds, privacy: .public)s has no image buffer — skipping")
+                        continue
+                    }
                     if !adaptor.append(buffer, withPresentationTime: pts) {
+                            log.error("Video pump: adaptor.append failed at frame \(frameCount, privacy: .public) (t=\(pts.seconds, privacy: .public)s), input ready: \(input.isReadyForMoreMediaData, privacy: .public)")
                         input.markAsFinished()
                         state.finish(.failure(ExportError.appendFailed))
                         return
                     }
+                    frameCount += 1
                     if totalSeconds > 0 {
                         let p = pts.seconds / totalSeconds
                         progress(min(max(p, 0), 0.99))
@@ -257,30 +323,36 @@ extension ExportService {
                 }
             }
         }
+        log.debug("Video pump finished: \(frameCount, privacy: .public) total frames")
     }
 
     nonisolated func pumpAudio(
-        output: AVAssetReaderTrackOutput,
+        output: AVAssetReaderAudioMixOutput,
         input: AVAssetWriterInput
     ) async throws {
         let queue = DispatchQueue(label: "maya.export.audio", qos: .userInitiated)
         let state = ContinuationGuard<Void>()
+        var frameCount = 0
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             state.continuation = continuation
             input.requestMediaDataWhenReady(on: queue) {
                 while input.isReadyForMoreMediaData {
                     guard let sample = output.copyNextSampleBuffer() else {
+                        log.debug("Audio pump: no more samples after \(frameCount, privacy: .public) frames")
                         input.markAsFinished()
                         state.finish(.success(()))
                         return
                     }
                     if !input.append(sample) {
+                        log.error("Audio pump: append failed at frame \(frameCount, privacy: .public)")
                         input.markAsFinished()
                         state.finish(.failure(ExportError.appendFailed))
                         return
                     }
+                    frameCount += 1
                 }
             }
         }
+        log.debug("Audio pump finished: \(frameCount, privacy: .public) total frames")
     }
 }

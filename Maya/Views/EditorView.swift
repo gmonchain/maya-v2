@@ -1,19 +1,24 @@
 import AppKit
 import AVFoundation
+import Combine
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let log = Logger(subsystem: "com.gmonchain.maya", category: "ExportUI")
+
 struct EditorView: View {
     @State private var project = Project()
+    @State private var stateManager = ProjectStateManager()
     @State private var blurPoster: NSImage?
     @State private var exporter = ExportService()
-    @State private var projectURL: URL?
-    @State private var hasUnsavedChanges = false
+    @State private var recentProjects = RecentProjectsStore()
     
     private let newProjectPublisher = NotificationCenter.default.publisher(for: .newProject)
     private let openProjectPublisher = NotificationCenter.default.publisher(for: .openProject)
     private let saveProjectPublisher = NotificationCenter.default.publisher(for: .saveProject)
     private let importVideoPublisher = NotificationCenter.default.publisher(for: .importVideo)
+    private let autoSaveTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationSplitView {
@@ -21,7 +26,14 @@ struct EditorView: View {
         } detail: {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
-                    CanvasView(project: project, blurPoster: blurPoster)
+                    CanvasView(
+                        project: project,
+                        blurPoster: blurPoster,
+                        recentProjects: recentProjects,
+                        onOpenVideo: openVideoPicker,
+                        onOpenProject: openProject,
+                        onOpenRecentProject: openRecentProject
+                    )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .dropDestination(for: URL.self) { urls, _ in
                             guard let url = urls.first else { return false }
@@ -63,17 +75,9 @@ struct EditorView: View {
             .animation(.easeInOut(duration: 0.2), value: project.selectedAnimationID)
             .animation(.easeInOut(duration: 0.2), value: project.selectedTransitionID)
         }
-        .navigationTitle(projectURL != nil ? projectURL!.deletingPathExtension().lastPathComponent : "Maya")
+        .navigationTitle(stateManager.projectURL != nil ? stateManager.projectURL!.deletingPathExtension().lastPathComponent : "Maya")
         .onChange(of: project.videoURL) { _, _ in updateBlurPoster() }
-        .onChange(of: project.background) { _, _ in
-            updateBlurPoster()
-            markDirty()
-        }
-        .onChange(of: project.scale) { _, _ in markDirty() }
-        .onChange(of: project.offset) { _, _ in markDirty() }
-        .onChange(of: project.animations) { _, _ in markDirty() }
-        .onChange(of: project.clips) { _, _ in markDirty() }
-        .onChange(of: project.shadow) { _, _ in markDirty() }
+        .trackProjectChanges(project: project, stateManager: stateManager)
         .onReceive(newProjectPublisher) { _ in
             newProject()
         }
@@ -87,6 +91,9 @@ struct EditorView: View {
             if let url = notification.userInfo?["url"] as? URL {
                 importVideo(from: url)
             }
+        }
+        .onReceive(autoSaveTimer) { _ in
+            autoSave()
         }
     }
 
@@ -207,6 +214,41 @@ struct EditorView: View {
         }
     }
 
+    private func openVideoPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.movie, .quickTimeMovie, .mpeg4Movie]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            importVideo(from: url)
+        }
+    }
+
+    private func openRecentProject(_ url: URL) {
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let loaded = try ProjectService.load(from: url)
+            stateManager.projectURL = url
+            stateManager.markClean()
+            recentProjects.didOpen(url: url)
+            project = Project()
+            Task { @MainActor in
+                await project.loadFromProjectFile(
+                    loaded.projectFile,
+                    videoURL: loaded.videoURL,
+                    audioURLs: loaded.audioURLs,
+                    imageURLs: loaded.imageURLs,
+                    backgroundVideoURLs: loaded.backgroundVideoURLs
+                )
+                blurPoster = nil
+                updateBlurPoster()
+            }
+        } catch {
+            project.lastExportError = "Failed to open project: \(error.localizedDescription)"
+        }
+    }
+
     private func runExport() {
         let isTransparent = project.background.isTransparent
         let suggestedName = isTransparent ? "Maya-export.mov" : "Maya-export.mp4"
@@ -218,6 +260,7 @@ struct EditorView: View {
                 project.lastExportError = nil
                 project.exportProgress = 0
                 project.exportedFileURL = nil
+                log.info("▶ Export started — mode: \(isTransparent ? "transparent" : "background", privacy: .public), quality: \(String(describing: project.exportQuality), privacy: .public), size: \(project.exportRenderSize.shortSide, privacy: .public)px")
                 do {
                     if isTransparent {
                         try await exporter.exportTransparent(
@@ -233,8 +276,16 @@ struct EditorView: View {
                         )
                     }
                     await MainActor.run { project.exportedFileURL = url }
+                    log.info("✓ Export completed successfully: \(url.lastPathComponent, privacy: .public)")
                 } catch {
-                    await MainActor.run { project.lastExportError = error.localizedDescription }
+                    let nsError = error as NSError
+                    log.error("✗ Export FAILED — description: \(error.localizedDescription, privacy: .public), domain: \(nsError.domain, privacy: .public), code: \(nsError.code, privacy: .public)")
+                    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                        log.error("  underlying error: \(underlying.localizedDescription, privacy: .public)")
+                    }
+                    // Capture the full NSError for debugging
+                    let fullError = "\(error.localizedDescription) (domain: \(nsError.domain), code: \(nsError.code))"
+                    await MainActor.run { project.lastExportError = fullError }
                 }
                 project.isExporting = false
             }
@@ -252,78 +303,55 @@ struct EditorView: View {
     }
     
     // MARK: - Project Save/Open
-    
-    private func markDirty() {
-        hasUnsavedChanges = true
+
+    /// Auto-save: fires every 5s but only writes if the project has a save location and unsaved changes.
+    private func autoSave() {
+        guard stateManager.projectURL != nil else { return }
+        guard stateManager.hasUnsavedChanges else { return }
+        do {
+            try ProjectService.save(project: project, to: stateManager.projectURL!)
+            stateManager.markClean()
+        } catch {
+            // Silently ignore auto-save errors to avoid nagging the user.
+            // Errors on manual save are surfaced via saveProject().
+        }
     }
-    
+
     private func saveProject() {
-        if let existingURL = projectURL {
-            // Save to existing location
-            do {
-                try ProjectService.save(project: project, to: existingURL)
-                hasUnsavedChanges = false
-            } catch {
-                project.lastExportError = "Failed to save project: \(error.localizedDescription)"
-            }
-        } else {
-            // Save As
-            let panel = NSSavePanel()
-            panel.nameFieldStringValue = project.displayName ?? "Untitled"
-            panel.allowedContentTypes = [.init(filenameExtension: ProjectService.fileExtension) ?? .data]
-            panel.canCreateDirectories = true
-            panel.title = "Save Project"
-            
-            if panel.runModal() == .OK, let url = panel.url {
-                do {
-                    try ProjectService.save(project: project, to: url)
-                    projectURL = url
-                    hasUnsavedChanges = false
-                } catch {
-                    project.lastExportError = "Failed to save project: \(error.localizedDescription)"
-                }
-            }
+        stateManager.saveProject(project: project) { error in
+            project.lastExportError = error
+        }
+        if let url = stateManager.projectURL {
+            recentProjects.didOpen(url: url)
         }
     }
     
     private func newProject() {
         project = Project()
-        projectURL = nil
-        hasUnsavedChanges = false
+        stateManager.newProject()
         blurPoster = nil
     }
     
     private func openProject() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.init(filenameExtension: ProjectService.fileExtension) ?? .data]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.title = "Open Project"
-        
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                let loaded = try ProjectService.load(from: url)
-                
-                // Reset project state
+        stateManager.openProject(
+            onSuccess: { [self] url, projectFile, videoURL, audioURLs, imageURLs, backgroundVideoURLs in
+                recentProjects.didOpen(url: url)
                 project = Project()
-                projectURL = url
-                hasUnsavedChanges = false
-                
-                // Load the project
                 Task { @MainActor in
                     await project.loadFromProjectFile(
-                        loaded.projectFile,
-                        videoURL: loaded.videoURL,
-                        audioURLs: loaded.audioURLs,
-                        imageURLs: loaded.imageURLs
+                        projectFile,
+                        videoURL: videoURL,
+                        audioURLs: audioURLs,
+                        imageURLs: imageURLs,
+                        backgroundVideoURLs: backgroundVideoURLs
                     )
                     blurPoster = nil
                     updateBlurPoster()
                 }
-            } catch {
-                project.lastExportError = "Failed to open project: \(error.localizedDescription)"
+            },
+            onError: { error in
+                project.lastExportError = error
             }
-        }
+        )
     }
 }
