@@ -71,12 +71,41 @@ struct EditorView: View {
                     .background(Color(nsColor: .windowBackgroundColor))
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
+
+                if let audioClipID = project.activeAudioClipID,
+                   project.audioClips.contains(where: { $0.id == audioClipID }),
+                   project.selectedAnimationID == nil,
+                   project.selectedTransitionID == nil {
+                    Divider()
+                    AudioEditorPanel(project: project, clipID: audioClipID) {
+                        project.activeAudioClipID = nil
+                    }
+                    .frame(width: 340)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
             .animation(.easeInOut(duration: 0.2), value: project.selectedAnimationID)
             .animation(.easeInOut(duration: 0.2), value: project.selectedTransitionID)
+            .animation(.easeInOut(duration: 0.2), value: project.activeAudioClipID)
         }
         .navigationTitle(stateManager.projectURL != nil ? stateManager.projectURL!.deletingPathExtension().lastPathComponent : "Maya")
-        .onChange(of: project.videoURL) { _, _ in updateBlurPoster() }
+        .onChange(of: project.videoURL) { _, _ in
+            updateBlurPoster()
+            project.validateForAppStore()
+        }
+        .onChange(of: project.canvasAspect) { _, _ in
+            project.validateForAppStore()
+        }
+        .onChange(of: project.clips) { _, _ in
+            project.validateForAppStore()
+        }
+        .onChange(of: project.exportFPS) { _, _ in
+            project.validateForAppStore()
+        }
+        .onChange(of: project.exportVideoCodec) { _, _ in
+            project.validateForAppStore()
+        }
         .trackProjectChanges(project: project, stateManager: stateManager)
         .onReceive(newProjectPublisher) { _ in
             newProject()
@@ -243,6 +272,7 @@ struct EditorView: View {
                 )
                 blurPoster = nil
                 updateBlurPoster()
+                project.validateForAppStore()
             }
         } catch {
             project.lastExportError = "Failed to open project: \(error.localizedDescription)"
@@ -251,8 +281,9 @@ struct EditorView: View {
 
     private func runExport() {
         let isTransparent = project.background.isTransparent
-        let suggestedName = isTransparent ? "Maya-export.mov" : "Maya-export.mp4"
-        let types: [UTType] = isTransparent ? [.quickTimeMovie] : [.mpeg4Movie]
+        let ext = isTransparent ? "mov" : project.exportVideoCodec.fileExtension
+        let suggestedName = "Maya-export.\(ext)"
+        let types: [UTType] = isTransparent ? [.quickTimeMovie] : [project.exportVideoCodec.utType]
 
         runSavePanel(suggestedName: suggestedName, allowedTypes: types) { url in
             Task {
@@ -276,6 +307,9 @@ struct EditorView: View {
                         )
                     }
                     await MainActor.run { project.exportedFileURL = url }
+                    // Inspect exported video for detailed metadata.
+                    let info = await ExportedVideoInspector.inspect(file: url)
+                    await MainActor.run { project.exportedVideoInfo = info }
                     log.info("✓ Export completed successfully: \(url.lastPathComponent, privacy: .public)")
                 } catch {
                     let nsError = error as NSError
@@ -347,6 +381,7 @@ struct EditorView: View {
                     )
                     blurPoster = nil
                     updateBlurPoster()
+                    project.validateForAppStore()
                 }
             },
             onError: { error in

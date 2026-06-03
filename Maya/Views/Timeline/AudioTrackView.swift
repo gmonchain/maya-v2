@@ -192,6 +192,11 @@ struct AudioTrackView: View {
                 }
                 .allowsHitTesting(false)
             }
+
+            // Fade overlay — show visual fade-in/fade-out regions on the clip bar
+            if !clip.isMuted {
+                fadeIndicator(clip: clip, clipWidth: clipWidth, timelineDuration: timelineDuration)
+            }
         }
         .frame(width: clipWidth, height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
@@ -304,6 +309,98 @@ struct AudioTrackView: View {
         )
     }
 
+    // MARK: - Fade visual indicator
+
+    /// Overlays a visual indicator showing fade-in and fade-out regions on the clip bar.
+    /// Uses a gradient + chevron pattern to make the ramp regions easy to spot.
+    private func fadeIndicator(
+        clip: AudioClip,
+        clipWidth: CGFloat,
+        timelineDuration: Double
+    ) -> some View {
+        let dur = clip.clipDuration
+        if dur > 0, timelineDuration > 0 {
+            let fiDur = clip.fadeInEnabled ? min(clip.fadeInDuration, dur / 2) : 0
+            let foDur = clip.fadeOutEnabled ? min(clip.fadeOutDuration, dur / 2) : 0
+
+            if fiDur > 0 || foDur > 0 {
+                let scale = clipWidth / CGFloat(dur)
+                let fiWidth = CGFloat(fiDur) * scale
+                let foWidth = CGFloat(foDur) * scale
+
+                return AnyView(
+                    ZStack(alignment: .topLeading) {
+                        // Fade-in region (left side)
+                        if fiDur > 0 {
+                            HStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                .white.opacity(0.0),
+                                                Color(hex: "#4A9EE0") ?? .blue.opacity(0.35)
+                                            ],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: fiWidth)
+                                    .overlay(
+                                        HStack(spacing: 2) {
+                                            ForEach(0..<max(1, Int(fiWidth / 10)), id: \.self) { i in
+                                                ChevronShape()
+                                                    .fill(.white.opacity(0.25))
+                                                    .frame(width: 5, height: 6)
+                                                    .rotationEffect(.degrees(-90))
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                        .padding(.trailing, 3)
+                                        .opacity(0.6)
+                                    )
+                                Spacer(minLength: 0)
+                            }
+                        }
+
+                        // Fade-out region (right side)
+                        if foDur > 0 {
+                            HStack(spacing: 0) {
+                                Spacer(minLength: 0)
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(hex: "#4A9EE0") ?? .blue.opacity(0.35),
+                                                .white.opacity(0.0)
+                                            ],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(width: foWidth)
+                                    .overlay(
+                                        HStack(spacing: 2) {
+                                            ForEach(0..<max(1, Int(foWidth / 10)), id: \.self) { i in
+                                                ChevronShape()
+                                                    .fill(.white.opacity(0.25))
+                                                    .frame(width: 5, height: 6)
+                                                    .rotationEffect(.degrees(90))
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.leading, 3)
+                                        .opacity(0.6)
+                                    )
+                            }
+                        }
+                    }
+                    .allowsHitTesting(false)
+                )
+            }
+        }
+        return AnyView(EmptyView())
+    }
+
     private func applyCursor() {
         if hoveredHandle != nil {
             NSCursor.resizeLeftRight.set()
@@ -311,6 +408,19 @@ struct AudioTrackView: View {
             NSCursor.closedHand.set()
         } else {
             NSCursor.arrow.set()
+        }
+    }
+}
+
+// MARK: - Chevron shape for fade direction
+
+private struct ChevronShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            let midY = rect.midY
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: midY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         }
     }
 }

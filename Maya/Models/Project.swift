@@ -3,6 +3,7 @@ import CoreMedia
 import Foundation
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 import VideoToolbox
 
 // MARK: - Export quality
@@ -56,6 +57,69 @@ enum ExportQuality: String, CaseIterable, Identifiable, Sendable {
         case .high: 15_000_000
         case .ultra: nil // let quality=1.0 drive it
         }
+    }
+}
+
+// MARK: - Export FPS
+
+enum ExportFPS: String, CaseIterable, Identifiable, Sendable {
+    case fps30
+    case fps60
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fps30: "30 fps"
+        case .fps60: "60 fps"
+        }
+    }
+
+    var frameDuration: CMTime {
+        switch self {
+        case .fps30: CMTime(value: 1, timescale: 30)
+        case .fps60: CMTime(value: 1, timescale: 60)
+        }
+    }
+
+    var appleSpecCompliant: Bool {
+        // Apple requires ≤ 30 fps for App Previews.
+        self == .fps30
+    }
+}
+
+// MARK: - Export video codec
+
+enum ExportVideoCodec: String, CaseIterable, Identifiable, Sendable {
+    case h264
+    case hevc
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .h264: "H.264"
+        case .hevc: "HEVC/H.265"
+        }
+    }
+
+    var fileExtension: String {
+        switch self {
+        case .h264: "mp4"
+        case .hevc: "mov"
+        }
+    }
+
+    var utType: UTType {
+        switch self {
+        case .h264: .mpeg4Movie
+        case .hevc: .quickTimeMovie
+        }
+    }
+
+    var appleSpecCompliant: Bool {
+        // Apple accepts H.264 and ProRes 422. HEVC is NOT accepted.
+        self == .h264
     }
 }
 
@@ -288,6 +352,9 @@ final class Project {
             if isPlaying && inRange && !clip.isMuted {
                 let target = CMTime(seconds: sourcePos, preferredTimescale: 600)
                 audioPlayer.seek(to: target, toleranceBefore: CMTime(seconds: 0.05, preferredTimescale: 600), toleranceAfter: CMTime(seconds: 0.05, preferredTimescale: 600))
+                // Apply fade-aware volume for preview
+                let effVol = Float(clip.effectiveVolume(at: currentSeconds))
+                audioPlayer.volume = effVol
                 audioPlayer.play()
             } else {
                 audioPlayer.pause()
@@ -298,6 +365,7 @@ final class Project {
     /// Lightweight per-frame audio tick — only starts/stops audio players on range
     /// transitions. Does NOT seek while playing (avoids decoder churn and audible
     /// glitches). Only re-seeks if drift exceeds 1.0 second.
+    /// Also applies fade-in/fade-out volume in real time.
     private func tickAudioPlayers() {
         guard let player, player.timeControlStatus == .playing else {
             // If main player isn't playing, pause all audio players
@@ -310,6 +378,10 @@ final class Project {
             guard let audioPlayer = audioPlayerCache[clip.id] else { continue }
             let inRange = currentSeconds >= clip.timelineStart && currentSeconds <= clip.timelineEnd
             if inRange && !clip.isMuted {
+                // Apply fade-aware volume every tick
+                let effVol = Float(clip.effectiveVolume(at: currentSeconds))
+                audioPlayer.volume = effVol
+
                 if audioPlayer.timeControlStatus != .playing {
                     // Just entered range — seek to current position and start
                     let sourcePos = clip.timelineToSource(currentSeconds)
@@ -335,11 +407,49 @@ final class Project {
 
     var exportQuality: ExportQuality = .high
     var exportRenderSize: ExportRenderSize = .hd1080
+    var exportFPS: ExportFPS = .fps30
+    var exportVideoCodec: ExportVideoCodec = .h264
     var isExporting: Bool = false
     var exportProgress: Double = 0
     var lastExportError: String?
     /// URL of the most recently exported file. Shown as a "Reveal in Finder" button after export.
     var exportedFileURL: URL?
+    /// Detailed metadata of the most recently exported file, inspected after export completes.
+    var exportedVideoInfo: ExportVideoInfo?
+
+    // MARK: - App Store preview validation
+
+    /// Validation issues when canvas is set to App Store (portrait or landscape).
+    /// Empty when the canvas is not App Store or when validation hasn't run yet.
+    var appStoreIssues: [AppStoreValidationIssue] = []
+
+    /// Whether there are any blocking errors for App Store export.
+    var hasAppStoreErrors: Bool {
+        appStoreIssues.contains { $0.severity == .error }
+    }
+
+    /// Run App Store preview validation against the source video.
+    /// Clears issues when canvas is not App Store.
+    func validateForAppStore() {
+        guard let url = videoURL else {
+            appStoreIssues = []
+            return
+        }
+        let timelineDur = clips.map(\.timelineEnd).max() ?? 0
+        // Capture export settings at call time — they won't change during the async task.
+        let fps = exportFPS
+        let codec = exportVideoCodec
+        Task { @MainActor in
+            let issues = await AppStorePreviewValidator.validate(
+                sourceVideo: url,
+                canvasAspect: canvasAspect,
+                timelineDurationS: timelineDur,
+                exportFPS: fps,
+                exportVideoCodec: codec
+            )
+            self.appStoreIssues = issues
+        }
+    }
 
     var isMuted: Bool = true {
         didSet { player?.isMuted = isMuted }
@@ -602,6 +712,8 @@ final class Project {
 
         newPlayer.play()
         syncAudioPlayers(forcePlaying: true)
+        // If canvas is App Store, run validation against the newly loaded video.
+        validateForAppStore()
     }
 
     func togglePlayback() {

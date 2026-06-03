@@ -34,8 +34,6 @@ struct SettingsSidebar: View {
                 Divider()
                 BackgroundSection(project: project)
                 Divider()
-                AudioSection(project: project)
-                Divider()
                 exportSection
                 if let error = project.lastExportError {
                     Text(error)
@@ -101,7 +99,6 @@ struct SettingsSidebar: View {
                 .font(.headline)
 
             if project.videoURL != nil && !project.isExporting {
-                // Render size picker — hidden for App Store aspects (fixed dimensions).
                 if project.canvasAspect != .appStorePortrait && project.canvasAspect != .appStoreLandscape {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Render size")
@@ -136,7 +133,6 @@ struct SettingsSidebar: View {
                     }
                 }
 
-                // Quality picker
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Quality")
                         .font(.caption.weight(.medium))
@@ -171,52 +167,64 @@ struct SettingsSidebar: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-            }
 
-            ExportCardButton(
-                title: exportButtonTitle,
-                subtitle: exportSubtitle,
-                icon: exportButtonIcon,
-                isEnabled: project.videoURL != nil && !project.isExporting,
-                isExporting: project.isExporting,
-                progress: project.exportProgress,
-                action: onExport
-            )
-
-            if let fileURL = project.exportedFileURL,
-               FileManager.default.fileExists(atPath: fileURL.path) {
-                HStack(spacing: 6) {
-                    Button {
-                        NSWorkspace.shared.open(fileURL)
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "play.fill")
-                            Text("Open")
+                // FPS picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Frame rate")
+                        .font(.caption.weight(.medium))
+                    HStack(spacing: 0) {
+                        ForEach(ExportFPS.allCases) { fps in
+                            Button {
+                                project.exportFPS = fps
+                            } label: {
+                                Text(fps.displayName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        project.exportFPS == fps
+                                            ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
+                                            : AnyShapeStyle(Color.clear)
+                                    )
+                                    .foregroundStyle(project.exportFPS == fps ? .white : .primary)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(hex: "#6466FA")?.opacity(0.12) ?? Color.accentColor.opacity(0.12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color(hex: "#6466FA")?.opacity(0.3) ?? Color.accentColor.opacity(0.3), lineWidth: 0.5)
-                                )
-                        )
                     }
-                    .buttonStyle(.plain)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
+                    )
+                }
 
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "folder")
-                            Text("Finder")
+                // Codec picker (non-transparent only)
+                if !project.background.isTransparent {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Video codec")
+                            .font(.caption.weight(.medium))
+                        HStack(spacing: 0) {
+                            ForEach(ExportVideoCodec.allCases) { codec in
+                                Button {
+                                    project.exportVideoCodec = codec
+                                } label: {
+                                    Text(codec.displayName)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 5)
+                                        .background(
+                                            project.exportVideoCodec == codec
+                                                ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
+                                                : AnyShapeStyle(Color.clear)
+                                        )
+                                        .foregroundStyle(project.exportVideoCodec == codec ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -225,11 +233,193 @@ struct SettingsSidebar: View {
                                         .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
                                 )
                         )
+                        Text(project.exportVideoCodec == .hevc ? "HEVC may not be accepted by App Store Connect for App Previews" : "H.264 is accepted by App Store Connect")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                }
+            }
+
+            if !project.appStoreIssues.isEmpty {
+                appStoreIssueList
+            }
+
+            ExportCardButton(
+                title: exportButtonTitle,
+                subtitle: exportSubtitle,
+                icon: exportButtonIcon,
+                isEnabled: project.videoURL != nil && !project.isExporting && !project.hasAppStoreErrors,
+                isExporting: project.isExporting,
+                progress: project.exportProgress,
+                action: onExport
+            )
+
+            if let fileURL = project.exportedFileURL,
+               FileManager.default.fileExists(atPath: fileURL.path) {
+                openFinderRow(fileURL: fileURL)
+
+                if let info = project.exportedVideoInfo {
+                    exportedVideoInfoCard(info)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func openFinderRow(fileURL: URL) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                NSWorkspace.shared.open(fileURL)
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "play.fill")
+                    Text("Open")
+                }
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(hex: "#6466FA")?.opacity(0.12) ?? Color.accentColor.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(hex: "#6466FA")?.opacity(0.3) ?? Color.accentColor.opacity(0.3), lineWidth: 0.5)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                    Text("Finder")
+                }
+                .font(.system(size: 12, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - App Store validation issues
+
+    @ViewBuilder
+    private var appStoreIssueList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("App Preview Requirements")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ForEach(project.appStoreIssues) { issue in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: issue.severity == .error
+                          ? "exclamationmark.circle.fill"
+                          : "exclamationmark.triangle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(issue.severity == .error ? Color.red : Color.orange)
+                        .frame(width: 16, alignment: .center)
+                        .padding(.top, 1)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(issue.title)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                        Text(issue.message)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill((issue.severity == .error ? Color.red : Color.orange).opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke((issue.severity == .error ? Color.red : Color.orange).opacity(0.15), lineWidth: 0.5)
+                )
+            }
+        }
+    }
+
+    // MARK: - Exported video info card
+
+    @ViewBuilder
+    private func exportedVideoInfoCard(_ info: ExportVideoInfo) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Apple Spec Check")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(info.specChecks.filter { $0.status == .pass }.count)/\(info.specChecks.count) OK")
+                    .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(allPassed(info) ? .green : .orange)
+            }
+            .padding(.bottom, 6)
+
+            VStack(spacing: 0) {
+                ForEach(info.specChecks) { check in
+                    specCheckRow(check)
+                    if check.id != info.specChecks.last?.id {
+                        Divider().opacity(0.3).padding(.leading, 68)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                    )
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func specCheckRow(_ check: SpecCheck) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: check.status == .pass ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(check.status == .pass ? .green : .red)
+                .frame(width: 14)
+
+            Text(check.label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .leading)
+                .lineLimit(1)
+
+            Text(check.actual)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Text(check.spec)
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
+    private func allPassed(_ info: ExportVideoInfo) -> Bool {
+        info.specChecks.allSatisfy { $0.status == .pass }
     }
 
     private var exportButtonTitle: String {
@@ -242,22 +432,21 @@ struct SettingsSidebar: View {
             : "square.and.arrow.down.fill"
     }
 
-    /// One-line subtitle shown under the export title. Pieces are joined with
-    /// middle dots so it stays readable without breaking onto two rows.
     private var exportSubtitle: String {
         let size = project.canvasAspect.renderSize(forShortSide: project.exportRenderSize.shortSide)
-        let dims = "\(Int(size.width))×\(Int(size.height))"
-        let pieces: [String] = project.background.isTransparent
-            ? [dims, "HEVC + α", "MOV"]
-            : [dims, "H.264", "MP4"]
-        return pieces.joined(separator: " · ")
+        let dims = "\(Int(size.width))\u{00D7}\(Int(size.height))"
+        let fpsLabel = project.exportFPS.displayName
+        if project.background.isTransparent {
+            return [dims, "HEVC + \u{03B1}", "MOV"].joined(separator: " \u{00B7} ")
+        }
+        let codecLabel = project.exportVideoCodec.displayName
+        let ext = project.exportVideoCodec.fileExtension.uppercased()
+        return [dims, codecLabel, ext, fpsLabel].joined(separator: " \u{00B7} ")
     }
 }
 
 // MARK: - Export card
 
-/// Full-bleed export button styled as a tinted card. Doubles as the progress
-/// surface while the export is running so the layout doesn't reflow.
 private struct ExportCardButton: View {
     let title: String
     let subtitle: String

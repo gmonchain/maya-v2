@@ -24,6 +24,18 @@ struct AudioClip: Identifiable, Equatable, Sendable {
     /// Whether this clip is muted.
     var isMuted: Bool = false
 
+    // MARK: - Fade in/out
+
+    /// Whether fade-in is enabled for this clip.
+    var fadeInEnabled: Bool = true
+    /// Duration of the fade-in ramp (seconds). Clamped to half the clip duration.
+    var fadeInDuration: Double = 0.5
+
+    /// Whether fade-out is enabled for this clip.
+    var fadeOutEnabled: Bool = true
+    /// Duration of the fade-out ramp (seconds). Clamped to half the clip duration.
+    var fadeOutDuration: Double = 0.5
+
     /// Total duration of the original audio file (before any trim).
     var sourceDuration: Double
 
@@ -48,6 +60,33 @@ struct AudioClip: Identifiable, Equatable, Sendable {
         timelineStart + (s - trimStartTime)
     }
 
+    /// Returns the effective volume at a given *timeline* position,
+    /// taking fade-in and fade-out into account.
+    func effectiveVolume(at timelineTime: Double) -> Double {
+        guard !isMuted else { return 0 }
+        let rel = timelineTime - timelineStart
+        let dur = clipDuration
+        guard dur > 0 else { return volume }
+
+        // Fade-in
+        if fadeInEnabled && fadeInDuration > 0 {
+            let fadeInEnd = min(fadeInDuration, dur / 2)
+            if rel >= 0 && rel < fadeInEnd {
+                return volume * (rel / fadeInEnd)
+            }
+        }
+
+        // Fade-out
+        if fadeOutEnabled && fadeOutDuration > 0 {
+            let fadeOutStart = max(0, dur - min(fadeOutDuration, dur / 2))
+            if rel > fadeOutStart && rel <= dur {
+                return volume * ((dur - rel) / (dur - fadeOutStart))
+            }
+        }
+
+        return volume
+    }
+
     static func == (lhs: AudioClip, rhs: AudioClip) -> Bool {
         lhs.id == rhs.id
             && lhs.trimStartTime == rhs.trimStartTime
@@ -55,5 +94,9 @@ struct AudioClip: Identifiable, Equatable, Sendable {
             && lhs.timelineStart == rhs.timelineStart
             && lhs.volume == rhs.volume
             && lhs.isMuted == rhs.isMuted
+            && lhs.fadeInEnabled == rhs.fadeInEnabled
+            && lhs.fadeInDuration == rhs.fadeInDuration
+            && lhs.fadeOutEnabled == rhs.fadeOutEnabled
+            && lhs.fadeOutDuration == rhs.fadeOutDuration
     }
 }

@@ -19,7 +19,13 @@ final class DeviceFrameCompositionInstruction: AVMutableVideoCompositionInstruct
     nonisolated(unsafe) var backgroundVideoTrackID: CMPersistentTrackID = kCMPersistentTrackID_Invalid
     nonisolated(unsafe) var frameOverlay: CIImage?
     nonisolated(unsafe) var naturalHeightFraction: CGFloat = 0.9
+    /// Original source-time animations (not mapped to composition time).
+    /// The compositor converts composition time → source time via `clips`
+    /// before sampling so cross-clip animations work correctly.
     nonisolated(unsafe) var animations: [ZoomSegment] = []
+    /// Timeline clips used to map composition time back to source time
+    /// for correct animation sampling across clip boundaries.
+    nonisolated(unsafe) var clips: [VideoClip] = []
     nonisolated(unsafe) var shadow: PhoneShadow = PhoneShadow()
     nonisolated(unsafe) var shadowColor: CIColor = CIColor(red: 0, green: 0, blue: 0, alpha: 1)
     /// Used when `deviceFrame.kind != .physical` to derive the screen corner
@@ -118,17 +124,25 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
         let renderSize = context.size
         let renderRect = CGRect(origin: .zero, size: renderSize)
 
-        // Resolve effective scale/offset: sample any active zoom segment at the current
-        // composition time. Outside segments the camera holds at the instruction's base values.
-        let seconds = request.compositionTime.seconds
+        // Resolve effective scale/offset: animations are stored in source-time coordinates.
+        // Convert composition time → source time via the timeline clips so cross-clip
+        // animations (spanning multiple clips after a split) work correctly, matching
+        // the preview behavior in FramedDeviceView.
+        let compTime = request.compositionTime.seconds
+        let sourceTime = Self.compositionToSourceTime(compTime, clips: instruction.clips)
+        let animCount = instruction.animations.count
+        let clipCount = instruction.clips.count
         let sample = AnimationSampler.sample(
-            at: seconds.isFinite ? seconds : 0,
+            at: sourceTime.isFinite ? sourceTime : 0,
             segments: instruction.animations,
             baseScale: instruction.scale,
             baseOffset: instruction.offsetFraction
         )
         let effectiveScale = sample.scale
         let effectiveOffset = CGSize(width: sample.offsetX, height: sample.offsetY)
+        if animCount > 0 && abs(effectiveScale - instruction.scale) < 0.001 {
+            log.debug("ANIM DEBUG: t=\(frameTime, privacy: .public) compTime=\(compTime, privacy: .public) sourceTime=\(sourceTime, privacy: .public) anims=\(animCount, privacy: .public) clips=\(clipCount, privacy: .public) baseScale=\(instruction.scale, privacy: .public) effScale=\(effectiveScale, privacy: .public)")
+        }
 
         // Phone bounding box in render coords (CoreImage: origin bottom-left).
         // In `.none` mode the "phone" is just the bare video, so its aspect is
@@ -346,6 +360,16 @@ final class DeviceFrameCompositor: NSObject, AVVideoCompositing {
                          bounds: renderRect,
                          colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
         request.finish(withComposedVideoFrame: output)
+    }
+
+    /// Converts composition (timeline) time back to source-video time using the
+    /// timeline clips. Falls back to returning the input time when no clip is found.
+    /// This mirrors `VideoClip.timelineToSource` but finds the correct clip dynamically.
+    private static func compositionToSourceTime(_ compTime: Double, clips: [VideoClip]) -> Double {
+        guard let clip = clips.first(where: {
+            compTime >= $0.timelineStart && compTime <= $0.timelineEnd
+        }) else { return compTime }
+        return clip.timelineToSource(compTime)
     }
 
     private func scaleToFill(_ image: CIImage, target: CGRect) -> CIImage {

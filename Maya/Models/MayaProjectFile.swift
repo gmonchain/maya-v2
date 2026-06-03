@@ -332,6 +332,10 @@ struct AudioClipData: Codable, Sendable {
     var volume: Double
     var isMuted: Bool
     var sourceDuration: Double
+    var fadeInEnabled: Bool
+    var fadeInDuration: Double
+    var fadeOutEnabled: Bool
+    var fadeOutDuration: Double
 
     init(from clip: AudioClip) {
         self.id = clip.id.uuidString
@@ -343,6 +347,27 @@ struct AudioClipData: Codable, Sendable {
         self.volume = clip.volume
         self.isMuted = clip.isMuted
         self.sourceDuration = clip.sourceDuration
+        self.fadeInEnabled = clip.fadeInEnabled
+        self.fadeInDuration = clip.fadeInDuration
+        self.fadeOutEnabled = clip.fadeOutEnabled
+        self.fadeOutDuration = clip.fadeOutDuration
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        fileName = try container.decode(String.self, forKey: .fileName)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        trimStartTime = try container.decode(Double.self, forKey: .trimStartTime)
+        trimEndTime = try container.decode(Double.self, forKey: .trimEndTime)
+        timelineStart = try container.decode(Double.self, forKey: .timelineStart)
+        volume = try container.decode(Double.self, forKey: .volume)
+        isMuted = try container.decode(Bool.self, forKey: .isMuted)
+        sourceDuration = try container.decode(Double.self, forKey: .sourceDuration)
+        fadeInEnabled = try container.decodeIfPresent(Bool.self, forKey: .fadeInEnabled) ?? false
+        fadeInDuration = try container.decodeIfPresent(Double.self, forKey: .fadeInDuration) ?? 0.5
+        fadeOutEnabled = try container.decodeIfPresent(Bool.self, forKey: .fadeOutEnabled) ?? false
+        fadeOutDuration = try container.decodeIfPresent(Double.self, forKey: .fadeOutDuration) ?? 0.5
     }
 
     func toAudioClip(sandboxURL: URL) -> AudioClip? {
@@ -356,6 +381,10 @@ struct AudioClipData: Codable, Sendable {
             timelineStart: timelineStart,
             volume: volume,
             isMuted: isMuted,
+            fadeInEnabled: fadeInEnabled,
+            fadeInDuration: fadeInDuration,
+            fadeOutEnabled: fadeOutEnabled,
+            fadeOutDuration: fadeOutDuration,
             sourceDuration: sourceDuration
         )
     }

@@ -28,10 +28,8 @@ extension ExportService {
         let sourceDuration = CMTimeGetSeconds(try await sourceVideoTrack.load(.timeRange).duration)
         log.debug("Source video track loaded, duration: \(sourceDuration, privacy: .public)s")
 
-        let rawFrameDuration = try await sourceVideoTrack.load(.minFrameDuration)
-        let frameDuration: CMTime = (rawFrameDuration == .invalid || rawFrameDuration.seconds <= 0)
-            ? CMTime(value: 1, timescale: 60)
-            : rawFrameDuration
+        // Use user-selected FPS instead of source video's frame duration.
+        let frameDuration = snapshot.exportFPS.frameDuration
 
         let renderSize = snapshot.renderSize
         let frameOverlay = snapshot.frameOverlayCG.map { CIImage(cgImage: $0) }
@@ -107,7 +105,8 @@ extension ExportService {
             }
         }
 
-        // Additional audio clips (music, voiceover, SFX)
+        // Additional audio clips (music, voiceover, SFX) — collect audio mix params for volume/fade.
+        var audioMixParams: [AVMutableAudioMixInputParameters] = []
         for audioClip in snapshot.audioClips where !audioClip.isMuted {
             let audioAsset = AVURLAsset(url: audioClip.sourceURL)
             guard let sourceAudioTrack = try? await audioAsset.loadTracks(withMediaType: .audio).first else {
@@ -148,7 +147,12 @@ extension ExportService {
                 log.error("Failed to insert audio clip '\(audioClip.displayName, privacy: .public)' (start=\(range.start.seconds, privacy: .public), dur=\(range.duration.seconds, privacy: .public), trackEnd=\(trackEnd.seconds, privacy: .public)): \(error.localizedDescription)")
                 continue
             }
+            let params = AVMutableAudioMixInputParameters(track: compAudioTrack)
+            Self.applyVolumeAndFade(audioClip: audioClip, to: params, composition: composition)
+            audioMixParams.append(params)
         }
+
+        log.debug("Audio mix params for transparent pipeline: \(audioMixParams.count) tracks")
 
         let videoMaxEnd = snapshot.clips.map(\.timelineEnd).max() ?? 0
         let audioMaxEnd = snapshot.audioClips.map(\.timelineEnd).max() ?? 0
@@ -164,8 +168,11 @@ extension ExportService {
         instruction.backgroundImage = nil
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = true
-        // Shift animations to composition time.
-        instruction.animations = Self.animationsForComposition(snapshot.animations, clips: snapshot.clips)
+        // Keep animations in source-time coordinates; the compositor converts
+        // composition time → source time via `clips` before sampling, so
+        // cross-clip animations work correctly (matching preview behavior).
+        instruction.animations = snapshot.animations
+        instruction.clips = snapshot.clips
         instruction.bareCornerRadius = snapshot.bareCornerRadius
         instruction.bareBezelWidth = snapshot.bareBezelWidth
         instruction.bareBezelColor = snapshot.bareBezelColor
@@ -202,6 +209,13 @@ extension ExportService {
                 AVNumberOfChannelsKey: 2,
                 AVSampleRateKey: 44100
             ])
+            // Apply volume and fade mix to audio reading
+            if !audioMixParams.isEmpty {
+                let mix = AVMutableAudioMix()
+                mix.inputParameters = audioMixParams
+                o.audioMix = mix
+                log.debug("Applied audio mix with \(audioMixParams.count, privacy: .public) parameter set(s)")
+            }
             if reader.canAdd(o) {
                 reader.add(o)
                 audioOutput = o

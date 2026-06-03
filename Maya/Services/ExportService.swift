@@ -24,8 +24,9 @@ actor ExportService {
         let backgroundVideoURL: URL?
         /// nil when `deviceFrame.kind == .none` — the compositor skips the overlay step.
         let frameOverlayCG: CGImage?
-        /// Animations in absolute source-video coordinates. Each export path shifts/filters
-        /// them as appropriate for its time base.
+        /// Animations in absolute source-video coordinates. The compositor converts
+        /// composition time → source time via `clips` before sampling, so cross-clip
+        /// animations work correctly.
         let animations: [ZoomSegment]
         let renderSize: CGSize
         let bareCornerRadius: CGFloat
@@ -43,6 +44,10 @@ actor ExportService {
         let exportQuality: ExportQuality
         /// User-selected render size (short side in pixels).
         let exportRenderSize: ExportRenderSize
+        /// User-selected frame rate.
+        let exportFPS: ExportFPS
+        /// User-selected video codec.
+        let exportVideoCodec: ExportVideoCodec
     }
 
     func exportWithBackground(
@@ -82,42 +87,6 @@ actor ExportService {
         } catch {
             log.error("✗ exportTransparent FAILED: \(error.localizedDescription, privacy: .public)")
             throw error
-        }
-    }
-
-    // MARK: - Animation shifting
-
-    /// Maps source-time animations into composition-time coordinates for multi-clip export.
-    /// Clips are placed at their `timelineStart` in the composition, so the mapping is:
-    ///   compositionTime = clip.timelineStart + (animationSourceTime − clip.trimStartTime) / clip.speed
-    /// Animation duration is also divided by speed since the clip plays back faster.
-    nonisolated static func animationsForComposition(_ segments: [ZoomSegment], clips: [VideoClip]) -> [ZoomSegment] {
-        guard !clips.isEmpty else { return [] }
-        let minDuration = 0.4
-        let totalCompositionDuration = clips.map(\.timelineEnd).max() ?? 0
-
-        return segments.compactMap { seg in
-            // Find which clip this animation's start falls in.
-            guard let clip = clips.first(where: { clip in
-                seg.startTime >= clip.trimStartTime && seg.startTime < clip.trimEndTime
-            }) else { return nil }
-
-            let speed = clip.speed
-            // Map source time to composition time, accounting for playback speed
-            let compositionStart = clip.timelineStart + (seg.startTime - clip.trimStartTime) / speed
-            // Animation duration in source time → duration in composition time
-            let compositionDuration = seg.duration / speed
-
-            var s = seg
-            s.startTime = compositionStart
-            let effectiveEnd = min(clip.timelineEnd, compositionStart + compositionDuration)
-            s.duration = max(minDuration, effectiveEnd - s.startTime)
-            // Clamp total composition
-            if s.startTime >= totalCompositionDuration { return nil }
-            let half = max(0.05, s.duration / 2)
-            s.transitionIn = min(s.transitionIn, half)
-            s.transitionOut = min(s.transitionOut, half)
-            return s
         }
     }
 
@@ -198,7 +167,9 @@ actor ExportService {
             audioClips: project.audioClips,
             backgroundBlurRadius: project.backgroundBlurRadius,
             exportQuality: project.exportQuality,
-            exportRenderSize: project.exportRenderSize
+            exportRenderSize: project.exportRenderSize,
+            exportFPS: project.exportFPS,
+            exportVideoCodec: project.exportVideoCodec
         )
     }
 }
@@ -227,6 +198,42 @@ enum ExportError: LocalizedError {
         case .writerStartFailed(let e): "Writer failed to start: \(e?.localizedDescription ?? "unknown")"
         case .writerFinishFailed: "Writer failed to finish."
         case .appendFailed: "Failed to append sample buffer."
+        }
+    }
+}
+
+// MARK: - Audio volume and fade helper
+
+extension ExportService {
+    /// Applies volume and optional fade-in/fade-out ramps to an `AVMutableAudioMixInputParameters`.
+    nonisolated static func applyVolumeAndFade(
+        audioClip: AudioClip,
+        to params: AVMutableAudioMixInputParameters,
+        composition: AVMutableComposition
+    ) {
+        let startTime = CMTime(seconds: audioClip.timelineStart, preferredTimescale: 600)
+        let endTime = CMTime(seconds: audioClip.timelineEnd, preferredTimescale: 600)
+        let clipDur = audioClip.clipDuration
+        let vol = Float(audioClip.volume)
+
+        // Fade-in
+        if audioClip.fadeInEnabled && audioClip.fadeInDuration > 0 {
+            let fiDur = min(audioClip.fadeInDuration, clipDur / 2)
+            let fadeInEnd = CMTime(seconds: audioClip.timelineStart + fiDur, preferredTimescale: 600)
+            let range = CMTimeRange(start: startTime, duration: CMTimeSubtract(fadeInEnd, startTime))
+            params.setVolumeRamp(fromStartVolume: 0, toEndVolume: vol, timeRange: range)
+        } else {
+            params.setVolume(vol, at: startTime)
+        }
+
+        // Fade-out
+        if audioClip.fadeOutEnabled && audioClip.fadeOutDuration > 0 {
+            let foDur = min(audioClip.fadeOutDuration, clipDur / 2)
+            let fadeOutStart = CMTime(seconds: max(audioClip.timelineStart, audioClip.timelineEnd - foDur), preferredTimescale: 600)
+            let range = CMTimeRange(start: fadeOutStart, duration: CMTimeSubtract(endTime, fadeOutStart))
+            params.setVolumeRamp(fromStartVolume: vol, toEndVolume: 0, timeRange: range)
+        } else {
+            params.setVolume(0, at: endTime)
         }
     }
 }

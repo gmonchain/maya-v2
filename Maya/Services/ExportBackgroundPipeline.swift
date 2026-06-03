@@ -144,7 +144,7 @@ extension ExportService {
                 continue
             }
             let params = AVMutableAudioMixInputParameters(track: compAudioTrack)
-            params.setVolume(Float(audioClip.volume), at: .zero)
+            Self.applyVolumeAndFade(audioClip: audioClip, to: params, composition: composition)
             audioMixParams.append(params)
         }
 
@@ -153,8 +153,8 @@ extension ExportService {
         let totalDuration = CMTime(seconds: max(videoMaxEnd, audioMaxEnd), preferredTimescale: 600)
         log.info("Composition built — totalDuration: \(totalDuration.seconds, privacy: .public)s, clips: \(snapshot.clips.count), audioClips: \(snapshot.audioClips.count)")
         let renderSize = snapshot.renderSize
-        let frameDuration = try await sourceVideoTrack.load(.minFrameDuration)
-        let fps = frameDuration == .invalid || frameDuration.seconds <= 0 ? CMTime(value: 1, timescale: 60) : frameDuration
+        // Use user-selected FPS instead of source video's frame duration.
+        let fps = snapshot.exportFPS.frameDuration
 
         let backgroundImage = try buildBackgroundCIImage(snapshot: snapshot, size: renderSize)
         let frameOverlay = snapshot.frameOverlayCG.map { CIImage(cgImage: $0) }
@@ -207,8 +207,11 @@ extension ExportService {
         instruction.backgroundVideoTrackID = backgroundVideoTrackID
         instruction.frameOverlay = frameOverlay
         instruction.renderTransparent = false
-        // Shift animations from source coords to composition time coords.
-        instruction.animations = Self.animationsForComposition(snapshot.animations, clips: snapshot.clips)
+        // Keep animations in source-time coordinates; the compositor converts
+        // composition time → source time via `clips` before sampling, so
+        // cross-clip animations work correctly (matching preview behavior).
+        instruction.animations = snapshot.animations
+        instruction.clips = snapshot.clips
         instruction.bareCornerRadius = snapshot.bareCornerRadius
         instruction.bareBezelWidth = snapshot.bareBezelWidth
         instruction.bareBezelColor = snapshot.bareBezelColor
@@ -221,8 +224,21 @@ extension ExportService {
         videoComposition.customVideoCompositorClass = DeviceFrameCompositor.self
         videoComposition.instructions = [instruction]
 
-        guard let session = AVAssetExportSession(asset: composition, presetName: snapshot.exportQuality.backgroundPreset) else {
-            log.error("AVAssetExportSession init failed for preset \(snapshot.exportQuality.backgroundPreset, privacy: .public)")
+        // Choose preset based on codec selection
+        let preset: String
+        let fileType: AVFileType
+        if snapshot.exportVideoCodec == .hevc {
+            preset = AVAssetExportPresetHEVCHighestQuality
+            fileType = .mov
+            log.debug("Codec: HEVC → using preset \(preset, privacy: .public), output: .mov")
+        } else {
+            preset = snapshot.exportQuality.backgroundPreset
+            fileType = .mp4
+            log.debug("Codec: H.264 → using preset \(preset, privacy: .public), output: .mp4")
+        }
+
+        guard let session = AVAssetExportSession(asset: composition, presetName: preset) else {
+            log.error("AVAssetExportSession init failed for preset \(preset, privacy: .public)")
             throw ExportError.cannotInitExportSession
         }
         session.videoComposition = videoComposition
@@ -233,7 +249,7 @@ extension ExportService {
             session.audioMix = audioMix
             log.debug("Applied audio mix with \(audioMixParams.count, privacy: .public) parameter set(s)")
         }
-        log.debug("AVAssetExportSession — preset: \(snapshot.exportQuality.backgroundPreset, privacy: .public), optimize: \(session.shouldOptimizeForNetworkUse, privacy: .public)")
+        log.debug("AVAssetExportSession — preset: \(preset, privacy: .public), fileType: \(fileType.rawValue, privacy: .public), optimize: \(session.shouldOptimizeForNetworkUse, privacy: .public)")
 
         if FileManager.default.fileExists(atPath: outputURL.path) {
             log.debug("Removing existing output file at \(outputURL.path, privacy: .public)")
@@ -268,11 +284,10 @@ extension ExportService {
 
         log.info("Calling AVAssetExportSession.export()...")
         do {
-            try await session.export(to: outputURL, as: .mp4)
+            try await session.export(to: outputURL, as: fileType)
             log.info("AVAssetExportSession.export() completed successfully")
         } catch {
             log.error("AVAssetExportSession.export() threw error: \(error.localizedDescription, privacy: .public)")
-            // Also check session status after failure
             log.error("Session status after error: \(session.status.rawValue, privacy: .public), session.error: \(session.error?.localizedDescription ?? "nil", privacy: .public)")
             throw error
         }
