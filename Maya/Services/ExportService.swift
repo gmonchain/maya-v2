@@ -89,7 +89,8 @@ actor ExportService {
 
     /// Maps source-time animations into composition-time coordinates for multi-clip export.
     /// Clips are placed at their `timelineStart` in the composition, so the mapping is:
-    ///   compositionTime = clip.timelineStart + (animationSourceTime − clip.trimStartTime)
+    ///   compositionTime = clip.timelineStart + (animationSourceTime − clip.trimStartTime) / clip.speed
+    /// Animation duration is also divided by speed since the clip plays back faster.
     nonisolated static func animationsForComposition(_ segments: [ZoomSegment], clips: [VideoClip]) -> [ZoomSegment] {
         guard !clips.isEmpty else { return [] }
         let minDuration = 0.4
@@ -101,11 +102,15 @@ actor ExportService {
                 seg.startTime >= clip.trimStartTime && seg.startTime < clip.trimEndTime
             }) else { return nil }
 
-            let compositionStart = clip.timelineStart + (seg.startTime - clip.trimStartTime)
+            let speed = clip.speed
+            // Map source time to composition time, accounting for playback speed
+            let compositionStart = clip.timelineStart + (seg.startTime - clip.trimStartTime) / speed
+            // Animation duration in source time → duration in composition time
+            let compositionDuration = seg.duration / speed
 
             var s = seg
             s.startTime = compositionStart
-            let effectiveEnd = min(clip.timelineEnd, compositionStart + s.duration)
+            let effectiveEnd = min(clip.timelineEnd, compositionStart + compositionDuration)
             s.duration = max(minDuration, effectiveEnd - s.startTime)
             // Clamp total composition
             if s.startTime >= totalCompositionDuration { return nil }

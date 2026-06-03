@@ -101,37 +101,39 @@ struct SettingsSidebar: View {
                 .font(.headline)
 
             if project.videoURL != nil && !project.isExporting {
-                // Render size picker
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Render size")
-                        .font(.caption.weight(.medium))
-                    HStack(spacing: 0) {
-                        ForEach(ExportRenderSize.allCases) { size in
-                            Button {
-                                project.exportRenderSize = size
-                            } label: {
-                                Text(size.displayName)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        project.exportRenderSize == size
-                                            ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
-                                            : AnyShapeStyle(Color.clear)
-                                    )
-                                    .foregroundStyle(project.exportRenderSize == size ? .white : .primary)
+                // Render size picker — hidden for App Store aspects (fixed dimensions).
+                if project.canvasAspect != .appStorePortrait && project.canvasAspect != .appStoreLandscape {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Render size")
+                            .font(.caption.weight(.medium))
+                        HStack(spacing: 0) {
+                            ForEach(ExportRenderSize.allCases) { size in
+                                Button {
+                                    project.exportRenderSize = size
+                                } label: {
+                                    Text(size.displayName)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 5)
+                                        .background(
+                                            project.exportRenderSize == size
+                                                ? AnyShapeStyle(Color(hex: "#6466FA") ?? Color.accentColor)
+                                                : AnyShapeStyle(Color.clear)
+                                        )
+                                        .foregroundStyle(project.exportRenderSize == size ? .white : .primary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                                )
+                        )
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(nsColor: .controlBackgroundColor))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                            )
-                    )
                 }
 
                 // Quality picker

@@ -63,10 +63,21 @@ extension ExportService {
                 )
                 let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
                 try compTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertAt)
+                // Account for playback speed: scale the inserted time range so the clip
+                // plays faster/slower on the timeline.
+                if clip.speed != 1.0 {
+                    let trackRange = CMTimeRange(
+                        start: insertAt,
+                        duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                    )
+                    let scaledDuration = CMTime(seconds: clip.clipDuration / clip.speed, preferredTimescale: 600)
+                    compTrack.scaleTimeRange(trackRange, toDuration: scaledDuration)
+                }
             }
         }
 
         // Audio passthrough — single track, all clips placed at their timelineStart.
+        // Must also scale by speed so audio stays in sync with sped-up video.
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         if let sourceAudio = audioTracks.first,
            let compAudioTrack = composition.addMutableTrack(
@@ -80,7 +91,19 @@ extension ExportService {
                     duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
                 )
                 let insertAt = CMTime(seconds: clip.timelineStart, preferredTimescale: 600)
-                try? compAudioTrack.insertTimeRange(range, of: sourceAudio, at: insertAt)
+                do {
+                    try compAudioTrack.insertTimeRange(range, of: sourceAudio, at: insertAt)
+                    if clip.speed != 1.0 {
+                        let trackRange = CMTimeRange(
+                            start: insertAt,
+                            duration: CMTime(seconds: clip.clipDuration, preferredTimescale: 600)
+                        )
+                        let scaledDuration = CMTime(seconds: clip.clipDuration / clip.speed, preferredTimescale: 600)
+                        compAudioTrack.scaleTimeRange(trackRange, toDuration: scaledDuration)
+                    }
+                } catch {
+                    log.warning("Audio passthrough insert failed for clip at \(clip.timelineStart, privacy: .public)s: \(error.localizedDescription)")
+                }
             }
         }
 

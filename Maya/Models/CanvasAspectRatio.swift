@@ -7,6 +7,8 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
     case vertical4x5
     case landscape4x3
     case landscape16x9
+    case appStorePortrait   // 886×1920 fixed
+    case appStoreLandscape  // 1920×886 fixed
 
     var id: String { rawValue }
 
@@ -18,6 +20,8 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .vertical4x5:   return 4.0 / 5.0
         case .landscape4x3:  return 4.0 / 3.0
         case .landscape16x9: return 16.0 / 9.0
+        case .appStorePortrait:  return 886.0 / 1920.0
+        case .appStoreLandscape: return 1920.0 / 886.0
         }
     }
 
@@ -28,6 +32,8 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .vertical4x5:   return "Portrait"
         case .landscape4x3:  return "Landscape"
         case .landscape16x9: return "YouTube / Widescreen"
+        case .appStorePortrait:  return "App Store Portrait"
+        case .appStoreLandscape: return "App Store Landscape"
         }
     }
 
@@ -38,19 +44,29 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .vertical4x5:   return "4:5"
         case .landscape4x3:  return "4:3"
         case .landscape16x9: return "16:9"
+        case .appStorePortrait:  return "886×1920"
+        case .appStoreLandscape: return "1920×886"
         }
     }
 
     /// Pixel dimensions used by the export pipeline. Short side stays at 1080
     /// for Reels/Shorts parity; landscape variants keep 1080 tall so HD
     /// (1920×1080) is the default for 16:9.
+    /// App Store cases return fixed dimensions (886×1920 / 1920×886).
     var renderSize: CGSize {
-        renderSize(forShortSide: 1080)
+        switch self {
+        case .appStorePortrait:  return CGSize(width: 886, height: 1920)
+        case .appStoreLandscape: return CGSize(width: 1920, height: 886)
+        default:                 return renderSize(forShortSide: 1080)
+        }
     }
 
     /// Render size scaled so the short side equals `shortSide` pixels.
+    /// App Store cases ignore `shortSide` and always return fixed dimensions.
     func renderSize(forShortSide shortSide: CGFloat) -> CGSize {
         switch self {
+        case .appStorePortrait:  return CGSize(width: 886, height: 1920)
+        case .appStoreLandscape: return CGSize(width: 1920, height: 886)
         case .square:        return CGSize(width: shortSide, height: shortSide)
         case .vertical9x16:  return CGSize(width: shortSide, height: shortSide * 16.0 / 9.0)
         case .vertical4x5:   return CGSize(width: shortSide, height: shortSide * 5.0 / 4.0)
@@ -67,6 +83,8 @@ enum CanvasAspectRatio: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .vertical4x5:   return "rectangle.portrait"
         case .landscape4x3:  return "rectangle"
         case .landscape16x9: return "rectangle"
+        case .appStorePortrait:  return "rectangle.portrait"
+        case .appStoreLandscape: return "rectangle"
         }
     }
 }
